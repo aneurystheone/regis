@@ -1,0 +1,7 @@
+{
+  "name": "Regis",
+  "description": "Un completo kit de herramientas para que los maestros administren clases, realicen un seguimiento de la asistencia de los estudiantes, registren evaluaciones y evidencia anecdótica, y generen informes detallados. Esta aplicación ayuda a agilizar las tareas administrativas diarias, permitiendo a los educadores centrarse más en la enseñanza.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

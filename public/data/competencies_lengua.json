@@ -1,0 +1,51 @@
+
+[
+  {
+    "curriculumId": "nivel_primario_5to_lengua_española",
+    "code": "LE-5-C-ORAL",
+    "name": "Comprensión oral",
+    "description": "Comprende discursos orales en situaciones de comunicación diversas, relativas a los ámbitos personal, social y educativo.",
+    "fundamentalId": "FC2",
+    "indicators": [
+      { "id": "LE-5-C-ORAL-I1", "text": "Anticipa el contenido a partir del título, los subtítulos, las imágenes y las palabras clave." },
+      { "id": "LE-5-C-ORAL-I2", "text": "Infiere, en textos orales sencillos, la intención comunicativa del hablante." },
+      { "id": "LE-5-C-ORAL-I3", "text": "Identifica las ideas principales y secundarias de textos orales variados." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_primario_5to_lengua_española",
+    "code": "LE-5-P-ORAL",
+    "name": "Producción oral",
+    "description": "Produce discursos orales coherentes en situaciones de comunicación diversas para expresar ideas, emociones y opiniones.",
+    "fundamentalId": "FC2",
+    "indicators": [
+      { "id": "LE-5-P-ORAL-I1", "text": "Expresa sus ideas con claridad, coherencia y adecuación a la situación comunicativa." },
+      { "id": "LE-5-P-ORAL-I2", "text": "Utiliza un vocabulario adecuado y variado en sus intervenciones orales." },
+      { "id": "LE-5-P-ORAL-I3", "text": "Respeta las normas de interacción oral (turnos de palabra, escucha activa)." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_primario_5to_lengua_española",
+    "code": "LE-5-C-ESCRITA",
+    "name": "Comprensión escrita",
+    "description": "Comprende textos escritos de diversa índole, en distintos formatos y soportes, para satisfacer sus necesidades de información, aprendizaje y ocio.",
+    "fundamentalId": "FC2",
+    "indicators": [
+      { "id": "LE-5-C-ESCRITA-I1", "text": "Localiza información explícita en textos de uso social y educativo." },
+      { "id": "LE-5-C-ESCRITA-I2", "text": "Diferencia entre información y opinión en textos periodísticos sencillos." },
+      { "id": "LE-5-C-ESCRITA-I3", "text": "Reconoce la estructura de diferentes tipos de textos (narrativos, descriptivos, expositivos)." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_primario_5to_lengua_española",
+    "code": "LE-5-P-ESCRITA",
+    "name": "Producción escrita",
+    "description": "Produce textos escritos coherentes y adecuados a la situación comunicativa, para expresar ideas, emociones y opiniones.",
+    "fundamentalId": "FC2",
+    "indicators": [
+      { "id": "LE-5-P-ESCRITA-I1", "text": "Planifica la escritura de sus textos, teniendo en cuenta el propósito y el destinatario." },
+      { "id": "LE-5-P-ESCRITA-I2", "text": "Escribe borradores y los revisa para mejorar la claridad, la cohesión y la corrección ortográfica." },
+      { "id": "LE-5-P-ESCRITA-I3", "text": "Aplica las normas de ortografía y puntuación en sus escritos." }
+    ]
+  }
+]
