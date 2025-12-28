@@ -1,0 +1,45 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    function isAudio() {
+      return request.resource.contentType.matches('audio/.*') || 
+             request.resource.contentType == 'video/webm'; // Recorders often allow webm
+    }
+    
+    function isSmallFile() {
+      return request.resource.size < 5 * 1024 * 1024; // 5MB
+    }
+
+    // Profile Photos
+    match /profile_photos/{fileName} {
+      allow read: if true; // Publicly readable for profiles
+      allow write: if isAuthenticated() && isImage() && isSmallFile();
+    }
+
+    // Evidence (Photos and Audio)
+    match /evidence/{type}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() 
+                   && isSmallFile()
+                   && (
+                     (type == 'photos' && isImage()) ||
+                     (type == 'audio' && isAudio())
+                   );
+    }
+
+    // Fallback: Deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

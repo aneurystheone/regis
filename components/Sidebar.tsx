@@ -21,11 +21,10 @@ const NavItem: React.FC<{
   <li
     onClick={onClick}
     title={isCollapsed ? label : undefined}
-    className={`flex items-center p-3.5 my-1.5 rounded-xl cursor-pointer transition-all duration-300 overflow-hidden ${
-      isActive
+    className={`flex items-center p-3.5 my-1.5 rounded-xl cursor-pointer transition-all duration-300 overflow-hidden ${isActive
         ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20'
         : 'text-slate-500 dark:text-slate-400 hover:bg-brand-bg dark:hover:bg-slate-700 hover:text-brand-primary dark:hover:text-slate-100'
-    } ${isCollapsed ? 'justify-center' : ''}`}
+      } ${isCollapsed ? 'justify-center' : ''}`}
   >
     <div className={`flex-shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`}>{icon}</div>
     <span className={`font-bold whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 ml-0 opacity-0' : 'ml-4 opacity-100'}`}>{label}</span>
@@ -33,22 +32,21 @@ const NavItem: React.FC<{
 );
 
 const SubNavItem: React.FC<{
-    icon: React.ReactNode;
-    label: string;
-    isActive: boolean;
-    onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
 }> = ({ icon, label, isActive, onClick }) => (
-    <li
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
-        className={`flex items-center p-2.5 my-1 rounded-lg cursor-pointer transition-all duration-200 text-xs ${
-            isActive
-            ? 'bg-brand-secondary/10 text-brand-primary dark:text-brand-secondary font-black'
-            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-        }`}
-    >
-       {icon}
-       <span className="ml-3 font-bold uppercase tracking-wider">{label}</span>
-    </li>
+  <li
+    onClick={(e) => { e.stopPropagation(); onClick(); }}
+    className={`flex items-center p-2.5 my-1 rounded-lg cursor-pointer transition-all duration-200 text-xs ${isActive
+        ? 'bg-brand-secondary/10 text-brand-primary dark:text-brand-secondary font-black'
+        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+      }`}
+  >
+    {icon}
+    <span className="ml-3 font-bold uppercase tracking-wider">{label}</span>
+  </li>
 )
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isOpen, onClose, isSidebarCollapsed, onToggleCollapse }) => {
@@ -64,24 +62,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, i
   return (
     <>
       <div
-        className={`fixed inset-0 bg-brand-primary/20 backdrop-blur-sm z-30 md:hidden transition-opacity ${
-          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
+        className={`fixed inset-0 bg-brand-primary/20 backdrop-blur-sm z-30 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
         onClick={onClose}
       ></div>
 
-      <aside 
-        className={`fixed inset-y-0 left-0 bg-white dark:bg-slate-800 text-slate-800 p-4 flex flex-col h-full z-40 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 overflow-x-hidden ${
-            isOpen ? 'translate-x-0' : '-translate-x-full'
-        } ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64 md:shadow-2xl md:shadow-brand-primary/5'}`}
+      <aside
+        className={`fixed inset-y-0 left-0 bg-white dark:bg-slate-800 text-slate-800 p-4 flex flex-col h-full z-40 transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 overflow-x-hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'
+          } ${isSidebarCollapsed ? 'md:w-20' : 'md:w-64 md:shadow-2xl md:shadow-brand-primary/5'}`}
       >
         <div className={`flex items-center mb-10 transition-all duration-300 overflow-hidden ${isSidebarCollapsed ? 'justify-center' : ''}`}>
-          <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-brand-primary/20">
-            <BookOpenIcon className="w-6 h-6 text-brand-accent" />
+          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-brand-primary/20 p-1">
+            <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className={`text-2xl font-black tracking-tighter text-brand-primary dark:text-white whitespace-nowrap transition-all duration-300 ${isSidebarCollapsed ? 'w-0 ml-0 opacity-0' : 'ml-3 opacity-100'}`}>REGIS</h1>
         </div>
-        
+
         <nav className={`flex-1 ${isSidebarCollapsed ? '' : 'overflow-y-auto no-scrollbar'}`}>
           <ul>
             <NavItem icon={<DashboardIcon />} label="Panel" isActive={isDashboardActive} onClick={() => handleNavigation('DASHBOARD')} isCollapsed={isSidebarCollapsed} />
@@ -91,25 +87,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, i
             <NavItem icon={<StarIcon />} label="Calificador" isActive={isGradebookActive} onClick={() => handleNavigation('GRADEBOOK_GRADES')} isCollapsed={isSidebarCollapsed} />
             <NavItem icon={<ChartBarIcon />} label="Reportes" isActive={currentView === 'REPORTS'} onClick={() => handleNavigation('REPORTS')} isCollapsed={isSidebarCollapsed} />
             <NavItem icon={<CogIcon />} label="Ajustes" isActive={isSettingsActive} onClick={() => handleNavigation('SETTINGS_APPEARANCE')} isCollapsed={isSidebarCollapsed} />
-            
+
             {isSettingsActive && !isSidebarCollapsed && (
-                <ul className="pl-6 border-l-2 border-slate-100 dark:border-slate-700 ml-5 my-2 space-y-1">
-                    <SubNavItem icon={<UserCircleIcon className="w-4 h-4" />} label="Perfil" isActive={currentView === 'TEACHER_PROFILE'} onClick={() => handleNavigation('TEACHER_PROFILE')} />
-                    <SubNavItem icon={<CalendarIcon className="w-4 h-4" />} label="Agenda" isActive={currentView === 'CALENDAR'} onClick={() => handleNavigation('CALENDAR')} />
-                    <SubNavItem icon={<MoonIcon className="w-4 h-4" />} label="Estilo" isActive={currentView === 'SETTINGS_APPEARANCE'} onClick={() => handleNavigation('SETTINGS_APPEARANCE')} />
-                    <SubNavItem icon={<RecycleBinIcon className="w-4 h-4" />} label="Papelera" isActive={currentView === 'SETTINGS_RECYCLE_BIN'} onClick={() => handleNavigation('SETTINGS_RECYCLE_BIN')} />
-                </ul>
+              <ul className="pl-6 border-l-2 border-slate-100 dark:border-slate-700 ml-5 my-2 space-y-1">
+                <SubNavItem icon={<UserCircleIcon className="w-4 h-4" />} label="Perfil" isActive={currentView === 'TEACHER_PROFILE'} onClick={() => handleNavigation('TEACHER_PROFILE')} />
+                <SubNavItem icon={<CalendarIcon className="w-4 h-4" />} label="Agenda" isActive={currentView === 'CALENDAR'} onClick={() => handleNavigation('CALENDAR')} />
+                <SubNavItem icon={<MoonIcon className="w-4 h-4" />} label="Estilo" isActive={currentView === 'SETTINGS_APPEARANCE'} onClick={() => handleNavigation('SETTINGS_APPEARANCE')} />
+                <SubNavItem icon={<RecycleBinIcon className="w-4 h-4" />} label="Papelera" isActive={currentView === 'SETTINGS_RECYCLE_BIN'} onClick={() => handleNavigation('SETTINGS_RECYCLE_BIN')} />
+              </ul>
             )}
           </ul>
         </nav>
-        
+
         <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-700">
-             <button
-                onClick={onToggleCollapse}
-                className="w-full flex items-center justify-center p-3.5 rounded-xl text-slate-400 hover:text-brand-primary bg-slate-50 dark:bg-slate-700/60 transition-all hover:bg-brand-secondary/10"
-            >
-                <ChevronDoubleLeftIcon className={`w-6 h-6 transition-transform duration-500 ${isSidebarCollapsed ? 'rotate-180' : ''}`} />
-            </button>
+          <button
+            onClick={onToggleCollapse}
+            className="w-full flex items-center justify-center p-3.5 rounded-xl text-slate-400 hover:text-brand-primary bg-slate-50 dark:bg-slate-700/60 transition-all hover:bg-brand-secondary/10"
+          >
+            <ChevronDoubleLeftIcon className={`w-6 h-6 transition-transform duration-500 ${isSidebarCollapsed ? 'rotate-180' : ''}`} />
+          </button>
         </div>
       </aside>
     </>

@@ -19,18 +19,19 @@ export const generateStudentSummary = async (student: Student, anecdotes: Anecdo
 
   try {
     const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
+      model: 'gemini-1.5-flash',
+      contents: prompt,
     });
     return response.text || "Hola, soy Vicente. No pude procesar el resumen en este momento.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error en Vicente (Summary):", error);
+    alert(`Error en Vicente (Resumen): ${error.message || 'Verifica tu API Key'}`);
     return "Lo siento, soy Vicente. Hubo un pequeño error técnico al intentar ayudarte.";
   }
 };
 
 export const generateEvaluationCriteria = async (competencies: Competency[], content: string, instrumentType: InstrumentType): Promise<string[]> => {
-    const prompt = `
+  const prompt = `
         ${VICENTE_PERSONA}
         Ayúdame a diseñar los criterios para un instrumento de "${instrumentType}" sobre "${content}".
         Competencias:
@@ -39,23 +40,24 @@ export const generateEvaluationCriteria = async (competencies: Competency[], con
         Devuelve un array JSON de strings con 5-7 criterios claros.
     `;
 
-    try {
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
-            }
-        });
-        
-        let jsonStr = response.text ? response.text.trim() : "[]";
-        jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(jsonStr);
-    } catch (error) {
-        console.error("Error en Vicente (Criteria):", error);
-        return [];
-    }
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
+      }
+    });
+
+    let jsonStr = response.text ? response.text.trim() : "[]";
+    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(jsonStr);
+  } catch (error: any) {
+    console.error("Error en Vicente (Criteria):", error);
+    alert(`Error en Vicente (Criterios): ${error.message || 'Verifica tu API Key'}`);
+    return [];
+  }
 };
 
 export const transcribeAndAnalyzeAnecdote = async (
@@ -71,7 +73,7 @@ export const transcribeAndAnalyzeAnecdote = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType, data: audioBase64 } }] },
       config: {
         responseMimeType: "application/json",
@@ -89,8 +91,9 @@ export const transcribeAndAnalyzeAnecdote = async (
     let jsonStr = response.text ? response.text.trim() : "{}";
     jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(jsonStr);
-  } catch (error) {
-      return null;
+  } catch (error: any) {
+    alert(`Error en Vicente (Audio): ${error.message || 'Verifica tu API Key'}`);
+    return null;
   }
 };
 
@@ -109,7 +112,7 @@ export const generateLessonPlan = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-1.5-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -118,13 +121,13 @@ export const generateLessonPlan = async (
           properties: {
             objectives: { type: Type.ARRAY, items: { type: Type.STRING } },
             materials: { type: Type.ARRAY, items: { type: Type.STRING } },
-            activities: { 
-              type: Type.ARRAY, 
-              items: { 
+            activities: {
+              type: Type.ARRAY,
+              items: {
                 type: Type.OBJECT,
                 properties: { time: { type: Type.STRING }, description: { type: Type.STRING } },
                 required: ['time', 'description']
-              } 
+              }
             }
           },
           required: ['objectives', 'materials', 'activities']
@@ -135,7 +138,8 @@ export const generateLessonPlan = async (
     let jsonStr = response.text ? response.text.trim() : "{}";
     jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(jsonStr);
-  } catch (error) {
+  } catch (error: any) {
+    alert(`Error en Vicente (Planificación): ${error.message || 'Verifica tu API Key'}`);
     return null;
   }
 };
@@ -152,7 +156,7 @@ export const extractStudentsFromImage = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }] },
       config: {
         responseMimeType: "application/json",
@@ -173,7 +177,8 @@ export const extractStudentsFromImage = async (
     let jsonStr = response.text ? response.text.trim() : "[]";
     jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(jsonStr);
-  } catch (error) {
+  } catch (error: any) {
+    alert(`Error en Vicente (Extractor): ${error.message || 'Verifica tu API Key'}`);
     return [];
   }
 };

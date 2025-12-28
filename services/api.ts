@@ -1,16 +1,16 @@
 
 import { db, auth } from '../firebase';
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  updateDoc, 
-  deleteDoc, 
-  writeBatch,
-  query,
-  where
+import {
+    collection,
+    getDocs,
+    doc,
+    setDoc,
+    getDoc,
+    updateDoc,
+    deleteDoc,
+    writeBatch,
+    query,
+    where
 } from "firebase/firestore";
 import type { Class, Student, AttendanceRecord, AnecdotalRecord, Competency, EvaluationInstrument, Grade, FundamentalCompetency, TeacherProfileData, JournalEntry, Resource, User, CustomEvent, RecoveryGrade, FontSize, DailyNote, CurriculumData, LessonPlan } from '../types';
 
@@ -29,20 +29,20 @@ export const syncEvents = {
 };
 
 const COLLECTIONS = {
-  USERS: 'users',
-  CLASSES: 'classes',
-  STUDENTS: 'students',
-  DELETED_STUDENTS: 'deleted_students',
-  INSTRUMENTS: 'instruments',
-  ANECDOTES: 'anecdotes',
-  USER_COMPETENCIES: 'user_competencies',
-  FUNDAMENTAL_COMPETENCIES: 'fundamental_competencies',
-  TEACHER_PROFILE: 'teacher_profile',
-  JOURNAL: 'journal',
-  RESOURCES: 'resources',
-  CUSTOM_EVENTS: 'custom_events',
-  LISTS: 'lists',
-  LESSON_PLANS: 'lesson_plans'
+    USERS: 'users',
+    CLASSES: 'classes',
+    STUDENTS: 'students',
+    DELETED_STUDENTS: 'deleted_students',
+    INSTRUMENTS: 'instruments',
+    ANECDOTES: 'anecdotes',
+    USER_COMPETENCIES: 'user_competencies',
+    FUNDAMENTAL_COMPETENCIES: 'fundamental_competencies',
+    TEACHER_PROFILE: 'teacher_profile',
+    JOURNAL: 'journal',
+    RESOURCES: 'resources',
+    CUSTOM_EVENTS: 'custom_events',
+    LISTS: 'lists',
+    LESSON_PLANS: 'lesson_plans'
 };
 
 const mockFundamentalCompetencies: FundamentalCompetency[] = [
@@ -134,7 +134,7 @@ const saveBulkList = async <T>(listName: string, items: T[]): Promise<void> => {
     setLocal(listName, items);
     const uid = getCurrentUserId();
     if (isVirtualMode() || !uid) return;
-    
+
     try {
         const docName = `${listName}_${uid}`;
         await setDoc(doc(db, COLLECTIONS.LISTS, docName), { items: sanitizeData(items), userId: uid });
@@ -150,7 +150,7 @@ export const api = {
         if (classes.length === 0) {
             const classId = `C_SEED_${Date.now()}`;
             const demoClass: Class = {
-                id: classId, name: 'Ciencias Sociales', grade: '4to', section: 'B', 
+                id: classId, name: 'Ciencias Sociales', grade: '4to', section: 'B',
                 schoolYear: '2024-2025', schedule: 'Mañanas', color: '#1F3A5F', level: 'Nivel Secundario'
             };
             await this.addClass(demoClass);
@@ -171,7 +171,7 @@ export const api = {
         const uid = getCurrentUserId();
         const newId = `C${Date.now()}`;
         const newClass: Class = { ...classData, id: newId };
-        
+
         const current = getLocal<Class>(COLLECTIONS.CLASSES);
         setLocal(COLLECTIONS.CLASSES, [...current, newClass]);
 
@@ -196,10 +196,17 @@ export const api = {
     async getStudents(): Promise<Student[]> { return fetchCollection<Student>(COLLECTIONS.STUDENTS); },
     async addStudent(studentData: Omit<Student, 'id'>): Promise<Student[]> {
         const uid = getCurrentUserId();
-        const newId = `S${Date.now()}`;
-        const newStudent: Student = { ...studentData, id: newId };
-        
+
+        // Generate Standardized ID (ST-YYYY-XXXX)
         const current = getLocal<Student>(COLLECTIONS.STUDENTS);
+        const year = new Date().getFullYear();
+        // Count students from current year to determine sequence
+        const currentYearCount = current.filter(s => s.id.startsWith(`ST-${year}`)).length;
+        const sequence = (currentYearCount + 1).toString().padStart(4, '0');
+        const newId = `ST-${year}-${sequence}`;
+
+        const newStudent: Student = { ...studentData, id: newId };
+
         setLocal(COLLECTIONS.STUDENTS, [...current, newStudent]);
 
         if (!isVirtualMode() && uid) {
@@ -211,9 +218,20 @@ export const api = {
     },
     async addStudents(studentsData: Omit<Student, 'id'>[]): Promise<Student[]> {
         const uid = getCurrentUserId();
-        const newStudents = studentsData.map(s => ({ ...s, id: `S${Date.now()}${Math.random().toString(36).substr(2,5)}` }));
-        
         const current = getLocal<Student>(COLLECTIONS.STUDENTS);
+
+        const year = new Date().getFullYear();
+        let currentSequence = current.filter(s => s.id.startsWith(`ST-${year}`)).length;
+
+        const newStudents = studentsData.map(s => {
+            currentSequence++;
+            const sequence = currentSequence.toString().padStart(4, '0');
+            return {
+                ...s,
+                id: `ST-${year}-${sequence}`
+            };
+        });
+
         setLocal(COLLECTIONS.STUDENTS, [...current, ...newStudents]);
 
         if (!isVirtualMode() && uid) {
@@ -253,7 +271,7 @@ export const api = {
         const newDeleted = [...getLocal<Student>(COLLECTIONS.DELETED_STUDENTS), ...studentsToMove];
         setLocal(COLLECTIONS.STUDENTS, newStudents);
         setLocal(COLLECTIONS.DELETED_STUDENTS, newDeleted);
-        
+
         if (!isVirtualMode() && uid) {
             const batch = writeBatch(db);
             studentsToMove.forEach(s => {
@@ -286,17 +304,17 @@ export const api = {
     async permanentlyDeleteStudent(studentId: string): Promise<{ deletedStudents: Student[], attendance: AttendanceRecord[], anecdotes: AnecdotalRecord[], grades: Grade[] }> {
         const newDeleted = getLocal<Student>(COLLECTIONS.DELETED_STUDENTS).filter(s => s.id !== studentId);
         setLocal(COLLECTIONS.DELETED_STUDENTS, newDeleted);
-        
+
         if (!isVirtualMode()) {
             try { await deleteDoc(doc(db, COLLECTIONS.DELETED_STUDENTS, studentId)); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
-        return { 
-            deletedStudents: newDeleted, 
-            attendance: await this.getAttendance(), 
-            anecdotes: await this.getAnecdotes(), 
-            grades: await this.getGrades() 
+        return {
+            deletedStudents: newDeleted,
+            attendance: await this.getAttendance(),
+            anecdotes: await this.getAnecdotes(),
+            grades: await this.getGrades()
         };
     },
 
@@ -325,7 +343,7 @@ export const api = {
     async getCompetencies(): Promise<Competency[]> { return fetchCollection<Competency>(COLLECTIONS.USER_COMPETENCIES); },
     async addCompetencies(competenciesData: Omit<Competency, 'id'>[]): Promise<Competency[]> {
         const uid = getCurrentUserId();
-        const newComps = competenciesData.map(c => ({ ...c, id: `COMP${Date.now()}${Math.random().toString(36).substr(2,5)}` }));
+        const newComps = competenciesData.map(c => ({ ...c, id: `COMP${Date.now()}${Math.random().toString(36).substr(2, 5)}` }));
         const current = getLocal<Competency>(COLLECTIONS.USER_COMPETENCIES);
         const updated = [...current, ...newComps];
         setLocal(COLLECTIONS.USER_COMPETENCIES, updated);
@@ -383,7 +401,7 @@ export const api = {
     },
     async setRecoveryGrades(grades: RecoveryGrade[]): Promise<void> { return saveBulkList('recovery_grades', grades); },
 
-    async getTeacherProfile(): Promise<TeacherProfileData> { 
+    async getTeacherProfile(): Promise<TeacherProfileData> {
         const uid = getCurrentUserId();
         if (isVirtualMode()) return JSON.parse(localStorage.getItem('regis_profile') || JSON.stringify(defaultTeacherProfile));
         try {
