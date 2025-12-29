@@ -35,12 +35,12 @@ let storage: any;
 let auth: any;
 
 try {
-    app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    storage = getStorage(app);
-    auth = getAuth(app);
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  storage = getStorage(app);
+  auth = getAuth(app);
 } catch (error) {
-    console.warn("Firebase configuration is missing or invalid. Cloud features will not work.");
+  console.warn("Firebase configuration is missing or invalid. Cloud features will not work.");
 }
 
 export { db, storage, auth };
