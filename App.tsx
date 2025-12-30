@@ -718,7 +718,16 @@ function App() {
     <div className={`flex h-screen bg-slate-100 dark:bg-slate-900 font-sans`}>
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isSidebarCollapsed={isSidebarCollapsed} onToggleCollapse={handleToggleSidebarCollapse} />
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <Header title={getHeaderTitle()} userName={user.name} userAvatar={teacherProfile?.profilePictureUrl} onMenuClick={() => setIsSidebarOpen(true)} onSearchClick={() => setIsGlobalSearchModalOpen(true)} onProfileClick={() => setCurrentView('TEACHER_PROFILE')} />
+        <Header
+          title={getHeaderTitle()}
+          userName={user.name}
+          userAvatar={teacherProfile?.profilePictureUrl}
+          onMenuClick={() => setIsSidebarOpen(true)}
+          onSearchClick={() => setIsGlobalSearchModalOpen(true)}
+          onNavigate={handleNavigateTo}
+          onLogout={() => setIsLogoutConfirmOpen(true)}
+          currentView={currentView}
+        />
         <div className="flex-1 overflow-y-auto">
           {renderView()}
         </div>

@@ -135,9 +135,17 @@ const calculateGradeSheet = (
             }
         }
 
-        const pcScores = competencyGroups.map(g => studentScores[`PC${g.slice(1)}`]).filter(s => s !== null) as number[];
-        if (pcScores.length > 0) {
-            studentScores['final'] = Math.round(pcScores.reduce((a, b) => a + b, 0) / pcScores.length);
+        const allPeriodsAndGroupsComplete = competencyGroups.every(g =>
+            finalPeriodScoresByGroup[g]!.length === evaluationPeriods.length
+        );
+
+        if (allPeriodsAndGroupsComplete) {
+            const pcScores = competencyGroups.map(g => studentScores[`PC${g.slice(1)}`]).filter(s => s !== null) as number[];
+            if (pcScores.length > 0) {
+                studentScores['final'] = Math.round(pcScores.reduce((a, b) => a + b, 0) / pcScores.length);
+            } else {
+                studentScores['final'] = null;
+            }
         } else {
             studentScores['final'] = null;
         }
