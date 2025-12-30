@@ -33,6 +33,7 @@ const COLLECTIONS = {
     CLASSES: 'classes',
     STUDENTS: 'students',
     DELETED_STUDENTS: 'deleted_students',
+    DELETED_CLASSES: 'deleted_classes',
     INSTRUMENTS: 'instruments',
     ANECDOTES: 'anecdotes',
     USER_COMPETENCIES: 'user_competencies',
@@ -191,6 +192,68 @@ export const api = {
             }
         }
         return this.getClasses();
+    },
+
+    async getDeletedClasses(): Promise<Class[]> { return fetchCollection<Class>(COLLECTIONS.DELETED_CLASSES); },
+
+    async moveClassToBin(classId: string): Promise<{ classes: Class[], deletedClasses: Class[] }> {
+        const uid = getCurrentUserId();
+        const currentClasses = getLocal<Class>(COLLECTIONS.CLASSES);
+        const classToMove = currentClasses.find(c => c.id === classId);
+
+        if (!classToMove) return { classes: currentClasses, deletedClasses: getLocal<Class>(COLLECTIONS.DELETED_CLASSES) };
+
+        const newClasses = currentClasses.filter(c => c.id !== classId);
+        const newDeleted = [...getLocal<Class>(COLLECTIONS.DELETED_CLASSES), classToMove];
+
+        setLocal(COLLECTIONS.CLASSES, newClasses);
+        setLocal(COLLECTIONS.DELETED_CLASSES, newDeleted);
+
+        if (!isVirtualMode() && uid) {
+            const batch = writeBatch(db);
+            batch.delete(doc(db, COLLECTIONS.CLASSES, classId));
+            batch.set(doc(db, COLLECTIONS.DELETED_CLASSES, classId), sanitizeData({ ...classToMove, userId: uid }));
+            try { await batch.commit(); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify(true);
+            }
+        }
+        return { classes: newClasses, deletedClasses: newDeleted };
+    },
+
+    async restoreClass(classId: string): Promise<{ classes: Class[], deletedClasses: Class[] }> {
+        const uid = getCurrentUserId();
+        const deletedClasses = getLocal<Class>(COLLECTIONS.DELETED_CLASSES);
+        const classToRestore = deletedClasses.find(c => c.id === classId);
+
+        if (!classToRestore) return { classes: getLocal<Class>(COLLECTIONS.CLASSES), deletedClasses };
+
+        const newDeleted = deletedClasses.filter(c => c.id !== classId);
+        const newClasses = [...getLocal<Class>(COLLECTIONS.CLASSES), classToRestore];
+
+        setLocal(COLLECTIONS.CLASSES, newClasses);
+        setLocal(COLLECTIONS.DELETED_CLASSES, newDeleted);
+
+        if (!isVirtualMode() && uid) {
+            const batch = writeBatch(db);
+            batch.delete(doc(db, COLLECTIONS.DELETED_CLASSES, classId));
+            batch.set(doc(db, COLLECTIONS.CLASSES, classId), sanitizeData({ ...classToRestore, userId: uid }));
+            try { await batch.commit(); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify(true);
+            }
+        }
+        return { classes: newClasses, deletedClasses: newDeleted };
+    },
+
+    async permanentlyDeleteClass(classId: string): Promise<{ deletedClasses: Class[] }> {
+        const newDeleted = getLocal<Class>(COLLECTIONS.DELETED_CLASSES).filter(c => c.id !== classId);
+        setLocal(COLLECTIONS.DELETED_CLASSES, newDeleted);
+
+        if (!isVirtualMode()) {
+            try { await deleteDoc(doc(db, COLLECTIONS.DELETED_CLASSES, classId)); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify(true);
+            }
+        }
+        return { deletedClasses: newDeleted };
     },
 
     async getStudents(): Promise<Student[]> { return fetchCollection<Student>(COLLECTIONS.STUDENTS); },
@@ -355,6 +418,26 @@ export const api = {
             }
         }
         return updated;
+    },
+    async updateCompetency(competencyId: string, updatedData: Omit<Competency, 'id'>): Promise<Competency[]> {
+        const current = getLocal<Competency>(COLLECTIONS.USER_COMPETENCIES).map(c => c.id === competencyId ? { ...updatedData, id: competencyId } : c);
+        setLocal(COLLECTIONS.USER_COMPETENCIES, current);
+        if (!isVirtualMode()) {
+            try { await updateDoc(doc(db, COLLECTIONS.USER_COMPETENCIES, competencyId), sanitizeData(updatedData)); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify(true);
+            }
+        }
+        return current;
+    },
+    async deleteCompetency(competencyId: string): Promise<Competency[]> {
+        const current = getLocal<Competency>(COLLECTIONS.USER_COMPETENCIES).filter(c => c.id !== competencyId);
+        setLocal(COLLECTIONS.USER_COMPETENCIES, current);
+        if (!isVirtualMode()) {
+            try { await deleteDoc(doc(db, COLLECTIONS.USER_COMPETENCIES, competencyId)); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify(true);
+            }
+        }
+        return current;
     },
 
     async getInstruments(): Promise<EvaluationInstrument[]> { return fetchCollection<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS); },

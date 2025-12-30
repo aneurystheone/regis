@@ -11,13 +11,13 @@ interface AddClassModalProps {
 }
 
 const subjects = [
-  'Lengua Española', 'Matemática', 'Ciencias Sociales', 'Ciencias de la Naturaleza', 
+  'Lengua Española', 'Matemática', 'Ciencias Sociales', 'Ciencias de la Naturaleza',
   'Biología', 'Química', 'Física', 'Formación Integral Humana y Religiosa',
-  'Educación Artística', 'Educación Física', 'Inglés', 'Francés', 
+  'Educación Artística', 'Educación Física', 'Inglés', 'Francés',
   'Informática', 'Contabilidad', 'Mercadeo'
 ].sort();
 
-const levels = ['Nivel Inicial', 'Nivel Primario', 'Nivel Secundario'];
+const levels = ['Nivel Primario', 'Nivel Secundario'];
 const grades = ['1ro', '2do', '3ro', '4to', '5to', '6to'];
 const sections = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -35,41 +35,41 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
     // Generate a range of years around current year
     const list = [];
     for (let i = -1; i < 4; i++) {
-        const start = currentYear + i - 1;
-        list.push(`${start}-${start + 1}`);
+      const start = currentYear + i - 1;
+      list.push(`${start}-${start + 1}`);
     }
     return list;
   }, []);
 
   useEffect(() => {
     if (isOpen) {
-        // Set default year relative to current month
-        const now = new Date();
-        const currentY = now.getFullYear();
-        // If month is after June, academic year starts this year (e.g., Aug 2024 -> 2024-2025)
-        // If month is before July, academic year started previous year (e.g., Feb 2025 -> 2024-2025)
-        const startYear = now.getMonth() > 5 ? currentY : currentY - 1;
-        setSchoolYear(`${startYear}-${startYear + 1}`);
-        
-        setSubject(subjects[0]);
-        setLevel('Nivel Primario');
-        setGrade('1ro');
-        setSection('A');
-        setError(null);
+      // Set default year relative to current month
+      const now = new Date();
+      const currentY = now.getFullYear();
+      // If month is after June, academic year starts this year (e.g., Aug 2024 -> 2024-2025)
+      // If month is before July, academic year started previous year (e.g., Feb 2025 -> 2024-2025)
+      const startYear = now.getMonth() > 5 ? currentY : currentY - 1;
+      setSchoolYear(`${startYear}-${startYear + 1}`);
+
+      setSubject(subjects[0]);
+      setLevel('Nivel Primario');
+      setGrade('1ro');
+      setSection('A');
+      setError(null);
     }
   }, [isOpen]);
-  
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (subject.trim() && grade.trim() && section.trim() && schoolYear.trim() && level.trim()) {
-      
+
       // Check for duplicates
-      const isDuplicate = classes.some(c => 
-        c.name === subject && 
-        c.grade === grade && 
-        c.section === section && 
+      const isDuplicate = classes.some(c =>
+        c.name === subject &&
+        c.grade === grade &&
+        c.section === section &&
         c.schoolYear === schoolYear &&
         c.level === level
       );
@@ -99,7 +99,7 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
             <XIcon className="w-6 h-6" />
           </button>
         </div>
-        
+
         {error && (
           <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-200 rounded-lg flex items-center text-sm">
             <ExclamationIcon className="w-5 h-5 mr-2 flex-shrink-0" />
@@ -109,78 +109,78 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <div>
-                <label htmlFor="class-level" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+            <div>
+              <label htmlFor="class-level" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
                 Nivel
-                </label>
-                <select
+              </label>
+              <select
                 id="class-level"
                 value={level}
                 onChange={(e) => setLevel(e.target.value)}
                 className={inputBaseClasses}
                 required
-                >
-                    {levels.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+              >
+                {levels.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
             </div>
             <div>
-                <label htmlFor="class-subject" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+              <label htmlFor="class-subject" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
                 Asignatura
-                </label>
-                <select
+              </label>
+              <select
                 id="class-subject"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 className={inputBaseClasses}
                 required
-                >
-                    {subjects.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+              >
+                {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-                <label htmlFor="class-grade" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+              <label htmlFor="class-grade" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
                 Grado
-                </label>
-                <select
+              </label>
+              <select
                 id="class-grade"
                 value={grade}
                 onChange={(e) => setGrade(e.target.value)}
                 className={inputBaseClasses}
                 required
-                >
-                    {grades.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
+              >
+                {grades.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
             </div>
-             <div>
-                <label htmlFor="class-section" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+            <div>
+              <label htmlFor="class-section" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
                 Sección
-                </label>
-                <select
+              </label>
+              <select
                 id="class-section"
                 value={section}
                 onChange={(e) => setSection(e.target.value)}
                 className={inputBaseClasses}
                 required
-                >
-                    {sections.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+              >
+                {sections.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
             <div>
-                <label htmlFor="class-year" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+              <label htmlFor="class-year" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
                 Año Escolar
-                </label>
-                <select
+              </label>
+              <select
                 id="class-year"
                 value={schoolYear}
                 onChange={(e) => setSchoolYear(e.target.value)}
                 className={inputBaseClasses}
                 required
-                >
-                    {years.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
+              >
+                {years.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
             </div>
           </div>
           <div className="flex justify-end gap-4 pt-4">

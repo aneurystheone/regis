@@ -33,7 +33,7 @@ import { AddRecoveryGradeModal } from './components/AddRecoveryGradeModal';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { ClassDetailModal } from './components/ClassDetailModal';
 import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
-import { LogoutIcon } from './components/icons';
+import { LogoutIcon, TrashIcon } from './components/icons';
 
 import { api } from './services/api';
 import { authService } from './services/authService';
@@ -146,6 +146,10 @@ function App() {
   const [studentsToMoveToBin, setStudentsToMoveToBin] = useState<Student[]>([]);
   const [studentToPermanentlyDelete, setStudentToPermanentlyDelete] = useState<Student | null>(null);
 
+  const [deletedClasses, setDeletedClasses] = useState<Class[]>([]);
+  const [classToMoveToBin, setClassToMoveToBin] = useState<Class | null>(null);
+  const [classToPermanentlyDelete, setClassToPermanentlyDelete] = useState<Class | null>(null);
+
   // --- Data Loading Logic ---
 
   const loadAppData = async () => {
@@ -155,6 +159,7 @@ function App() {
       fetchedClasses,
       fetchedStudents,
       fetchedDeletedStudents,
+      fetchedDeletedClasses,
       fetchedAttendance,
       fetchedDailyNotes,
       fetchedAnecdotes,
@@ -174,6 +179,7 @@ function App() {
       api.getClasses(),
       api.getStudents(),
       api.getDeletedStudents(),
+      api.getDeletedClasses(),
       api.getAttendance(),
       api.getDailyNotes(),
       api.getAnecdotes(),
@@ -193,6 +199,7 @@ function App() {
     setClasses(fetchedClasses);
     setStudents(fetchedStudents);
     setDeletedStudents(fetchedDeletedStudents);
+    setDeletedClasses(fetchedDeletedClasses);
     setAttendance(fetchedAttendance);
     setDailyNotes(fetchedDailyNotes);
     setAnecdotes(fetchedAnecdotes);
@@ -321,6 +328,27 @@ function App() {
     setClasses(updatedClasses);
     setClassToEdit(null);
     setIsEditClassModalOpen(false);
+  };
+
+  const handleMoveClassToBin = async () => {
+    if (!classToMoveToBin) return;
+    const { classes: updatedClasses, deletedClasses: updatedDeleted } = await api.moveClassToBin(classToMoveToBin.id);
+    setClasses(updatedClasses);
+    setDeletedClasses(updatedDeleted);
+    setClassToMoveToBin(null);
+  };
+
+  const handleRestoreClass = async (classId: string) => {
+    const { classes: updatedClasses, deletedClasses: updatedDeleted } = await api.restoreClass(classId);
+    setClasses(updatedClasses);
+    setDeletedClasses(updatedDeleted);
+  };
+
+  const handlePermanentlyDeleteClass = async () => {
+    if (!classToPermanentlyDelete) return;
+    const { deletedClasses: updatedDeleted } = await api.permanentlyDeleteClass(classToPermanentlyDelete.id);
+    setDeletedClasses(updatedDeleted);
+    setClassToPermanentlyDelete(null);
   };
 
   // Student Handlers
@@ -642,8 +670,11 @@ function App() {
                   </div>
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-4">{cls.schoolYear}</p>
-                <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={(e) => { e.stopPropagation(); setClassToView(cls); }} className="p-2 rounded-full bg-indigo-500 text-white shadow-lg hover:bg-indigo-600">Ver Detalles</button>
+                <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                  <button onClick={(e) => { e.stopPropagation(); setClassToView(cls); }} className="p-2 rounded-full bg-indigo-500 text-white shadow-lg hover:bg-indigo-600 font-bold text-xs px-4">Ver</button>
+                  <button onClick={(e) => { e.stopPropagation(); setClassToMoveToBin(cls); }} className="p-2 rounded-full bg-white text-rose-500 shadow-lg hover:bg-rose-50 border border-slate-100">
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
                 </div>
               </button>
             ))}
@@ -677,7 +708,7 @@ function App() {
       case 'SETTINGS_APPEARANCE':
         return <SettingsManager isDarkMode={isDarkMode} setIsDarkMode={handleSetIsDarkMode} fontSize={fontSize} setFontSize={handleSetFontSize} activeSubView={'APPEARANCE'} currentUserEmail={user.email} />;
       case 'SETTINGS_RECYCLE_BIN':
-        return <RecycleBin deletedStudents={deletedStudents} classes={classes} onRestore={handleRestoreStudent} onPermanentDelete={(s) => setStudentToPermanentlyDelete(s)} />;
+        return <RecycleBin deletedStudents={deletedStudents} classes={classes} onRestore={handleRestoreStudent} onPermanentDelete={(s) => setStudentToPermanentlyDelete(s)} deletedClasses={deletedClasses} onRestoreClass={handleRestoreClass} onPermanentDeleteClass={(c) => setClassToPermanentlyDelete(c)} />;
       default:
         return null;
     }
@@ -712,7 +743,7 @@ function App() {
       <InstrumentDetailModal isOpen={isInstrumentDetailModalOpen} onClose={() => { setIsInstrumentDetailModalOpen(false); setInstrumentToView(null); }} instrument={instrumentToView} competencies={competencies} onExpressGradingClick={(inst) => { setIsInstrumentDetailModalOpen(false); setGradingInstrument(inst); setIsExpressGradingModalOpen(true); }} onEditInstrumentClick={(inst) => { setIsInstrumentDetailModalOpen(false); setInstrumentToEdit(inst); setIsEditInstrumentModalOpen(true); }} />
       <ExpressGradingModal isOpen={isExpressGradingModalOpen} onClose={() => { setIsExpressGradingModalOpen(false); setGradingInstrument(null); setExpressGradingStudentId(null); }} instrument={gradingInstrument} students={students} grades={grades} onSaveGrades={handleSaveExpressGrades} initialFocusStudentId={expressGradingStudentId} />
 
-      <AddCompetencyModal isOpen={isAddCompetencyModalOpen} onClose={() => setIsAddCompetencyModalOpen(false)} onAddCompetencies={handleAddCompetencies} classes={classes} competencies={competencies} selectedClassId={selectedClassId} />
+      <AddCompetencyModal isOpen={isAddCompetencyModalOpen} onClose={() => setIsAddCompetencyModalOpen(false)} onAddCompetencies={handleAddCompetencies} classes={classes} competencies={competencies} selectedClassId={selectedClassId} fundamentalCompetencies={fundamentalCompetencies} />
       <AddRecoveryGradeModal isOpen={isAddRecoveryGradeModalOpen} onClose={() => { setIsAddRecoveryGradeModalOpen(false); setRecoveryGradeContext(null); }} context={recoveryGradeContext} onSave={handleSaveRecoveryGrade} />
 
       <GlobalSearchModal isOpen={isGlobalSearchModalOpen} onClose={() => setIsGlobalSearchModalOpen(false)} students={students} instruments={instruments} classes={classes} competencies={competencies} fundamentalCompetencies={fundamentalCompetencies} onNavigate={handleNavigateTo} />
@@ -720,6 +751,9 @@ function App() {
 
       <ConfirmDeleteModal isOpen={studentsToMoveToBin.length > 0} onClose={() => setStudentsToMoveToBin([])} onConfirm={handleMoveStudentsToBin} title="Mover a Papelera" message={`¿Está seguro de que desea mover ${studentsToMoveToBin.length} estudiante(s) a la papelera?`} confirmButtonText="Mover" />
       <ConfirmDeleteModal isOpen={!!studentToPermanentlyDelete} onClose={() => setStudentToPermanentlyDelete(null)} onConfirm={handlePermanentlyDeleteStudent} title="Eliminar Permanentemente" message={`¿Está seguro de que desea eliminar a ${studentToPermanentlyDelete?.name} permanentemente?`} />
+
+      <ConfirmDeleteModal isOpen={!!classToMoveToBin} onClose={() => setClassToMoveToBin(null)} onConfirm={handleMoveClassToBin} title="Mover a Papelera" message={`¿Está seguro de que desea mover la clase "${classToMoveToBin?.name}" a la papelera?`} confirmButtonText="Mover" />
+      <ConfirmDeleteModal isOpen={!!classToPermanentlyDelete} onClose={() => setClassToPermanentlyDelete(null)} onConfirm={handlePermanentlyDeleteClass} title="Eliminar Permanentemente" message={`¿Está seguro de que desea eliminar permanentemente la clase "${classToPermanentlyDelete?.name}"? Esta acción no se puede deshacer.`} />
 
       <ConfirmDeleteModal
         isOpen={isLogoutConfirmOpen}
