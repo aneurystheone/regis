@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UserCircleIcon, CalendarIcon, CogIcon, MoonIcon, RecycleBinIcon, ArrowRightOnRectangleIcon, ChevronDownIcon } from './icons';
+import { UserCircleIcon, CalendarIcon, CogIcon, MoonIcon, RecycleBinIcon, ArrowRightOnRectangleIcon, ChevronDownIcon, SparklesIcon } from './icons';
 import type { View } from '../types';
 
 interface ProfileDropdownMenuProps {
@@ -81,7 +81,7 @@ export const ProfileDropdownMenu: React.FC<ProfileDropdownMenuProps> = ({
             <div>
                 <button
                     onClick={() => setIsAjustesExpanded(!isAjustesExpanded)}
-                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold transition-colors ${['SETTINGS_APPEARANCE', 'SETTINGS_RECYCLE_BIN'].includes(currentView)
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold transition-colors ${['SETTINGS_APPEARANCE', 'SETTINGS_AI', 'SETTINGS_RECYCLE_BIN'].includes(currentView)
                         ? 'bg-brand-primary/10 text-brand-primary dark:text-brand-secondary'
                         : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                         }`}
@@ -108,6 +108,17 @@ export const ProfileDropdownMenu: React.FC<ProfileDropdownMenuProps> = ({
                         >
                             <MoonIcon className="w-4 h-4" />
                             <span>Apariencia</span>
+                        </button>
+
+                        <button
+                            onClick={() => handleNavigate('SETTINGS_AI')}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${currentView === 'SETTINGS_AI'
+                                ? 'text-brand-primary dark:text-brand-secondary'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                        >
+                            <SparklesIcon className="w-4 h-4" />
+                            <span>Inteligencia Artificial</span>
                         </button>
 
                         <button

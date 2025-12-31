@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import type { Student, Class } from '../types';
+import type { Student, Class, AIFeatures } from '../types';
 import { XIcon, DownloadIcon, DocumentAddIcon, ExclamationIcon, CameraIcon, SparklesIcon } from './icons';
 import { extractStudentsFromImage } from '../services/geminiService';
 
@@ -9,6 +9,7 @@ interface StudentImportModalProps {
   onClose: () => void;
   onImport: (students: Omit<Student, 'id' | 'classId' | 'avatar'>[], classId: string) => void;
   classes: Class[];
+  aiFeatures: AIFeatures;
 }
 
 type ParsedStudent = Omit<Student, 'id' | 'classId' | 'avatar'>;
@@ -20,12 +21,12 @@ type ParseResult = {
 const REQUIRED_HEADERS = ['name'];
 const OPTIONAL_HEADERS = ['gender', 'email', 'phone', 'birthdate'];
 
-export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, onClose, onImport, classes }) => {
+export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, onClose, onImport, classes, aiFeatures }) => {
   const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || '');
   const [file, setFile] = useState<File | null>(null);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState<string>('');
-  
+
   const [importMode, setImportMode] = useState<'csv' | 'image'>('csv');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
 
   const handleCsvFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    
+
     setParseResult(null);
     setError('');
     setFile(null);
@@ -69,13 +70,13 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
         setParseResult(null);
         return;
       }
-      
+
       let headerLine = lines[0];
       if (headerLine.charCodeAt(0) === 0xFEFF) {
-          headerLine = headerLine.substring(1);
+        headerLine = headerLine.substring(1);
       }
       const header = headerLine.split(',').map(h => h.trim().toLowerCase());
-      
+
       const missingHeaders = REQUIRED_HEADERS.filter(rh => !header.includes(rh));
       if (missingHeaders.length > 0) {
         setError(`Faltan las siguientes columnas requeridas: ${missingHeaders.join(', ')}.`);
@@ -85,7 +86,7 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
 
       const valid: ParsedStudent[] = [];
       const invalid: ParseResult['invalid'] = [];
-      
+
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',');
         const rowData: Record<string, string> = {};
@@ -107,27 +108,27 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
 
         const birthDate = rowData.birthdate;
         if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
-            invalid.push({ row: i + 1, data: rowData, error: 'La columna "birthDate" debe estar en formato AAAA-MM-DD.' });
-            continue;
+          invalid.push({ row: i + 1, data: rowData, error: 'La columna "birthDate" debe estar en formato AAAA-MM-DD.' });
+          continue;
         }
 
         valid.push({
-            name,
-            gender: gender as 'M' | 'F' | undefined,
-            email: rowData.email || undefined,
-            phone: rowData.phone || undefined,
-            birthDate: birthDate || undefined
+          name,
+          gender: gender as 'M' | 'F' | undefined,
+          email: rowData.email || undefined,
+          phone: rowData.phone || undefined,
+          birthDate: birthDate || undefined
         });
       }
       setParseResult({ valid, invalid });
     };
     reader.onerror = () => {
-        setError("Error al leer el archivo.");
-        setParseResult(null);
+      setError("Error al leer el archivo.");
+      setParseResult(null);
     }
     reader.readAsText(csvFile);
   };
-  
+
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
 
@@ -137,52 +138,52 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
     setImagePreviewUrl(null);
 
     if (selectedFile) {
-        if (!selectedFile.type.startsWith('image/')) {
-            setError('Por favor, seleccione un archivo de imagen válido.');
-            return;
-        }
-        
-        setFile(selectedFile);
-        
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const imageUrl = event.target?.result as string;
-            setImagePreviewUrl(imageUrl);
-            analyzeImage(imageUrl);
-        };
-        reader.onerror = () => {
-            setError("Error al leer el archivo de imagen.");
-        };
-        reader.readAsDataURL(selectedFile);
+      if (!selectedFile.type.startsWith('image/')) {
+        setError('Por favor, seleccione un archivo de imagen válido.');
+        return;
+      }
+
+      setFile(selectedFile);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const imageUrl = event.target?.result as string;
+        setImagePreviewUrl(imageUrl);
+        analyzeImage(imageUrl);
+      };
+      reader.onerror = () => {
+        setError("Error al leer el archivo de imagen.");
+      };
+      reader.readAsDataURL(selectedFile);
     }
   };
-  
+
   const analyzeImage = async (imageDataUrl: string) => {
     setIsAnalyzing(true);
     setError('');
     try {
-        const [meta, base64Data] = imageDataUrl.split(',');
-        if (!meta || !base64Data) throw new Error("Formato de imagen no válido.");
-        const mimeType = meta.split(':')[1].split(';')[0];
-        
-        const extractedData = await extractStudentsFromImage(base64Data, mimeType);
-        
-        if (extractedData.length > 0) {
-            const validStudents: ParsedStudent[] = extractedData.map(s => ({
-                ...s,
-                gender: Math.random() > 0.5 ? 'M' : 'F',
-            }));
-            setParseResult({ valid: validStudents, invalid: [] });
-        } else {
-            setError("La IA no pudo extraer estudiantes de la imagen. Intente con una foto más clara o de mejor calidad.");
-            setParseResult(null);
-        }
-    } catch (err) {
-        console.error(err);
-        setError("Ocurrió un error durante el análisis de la IA.");
+      const [meta, base64Data] = imageDataUrl.split(',');
+      if (!meta || !base64Data) throw new Error("Formato de imagen no válido.");
+      const mimeType = meta.split(':')[1].split(';')[0];
+
+      const extractedData = await extractStudentsFromImage(base64Data, mimeType);
+
+      if (extractedData.length > 0) {
+        const validStudents: ParsedStudent[] = extractedData.map(s => ({
+          ...s,
+          gender: Math.random() > 0.5 ? 'M' : 'F',
+        }));
+        setParseResult({ valid: validStudents, invalid: [] });
+      } else {
+        setError("La IA no pudo extraer estudiantes de la imagen. Intente con una foto más clara o de mejor calidad.");
         setParseResult(null);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Ocurrió un error durante el análisis de la IA.");
+      setParseResult(null);
     } finally {
-        setIsAnalyzing(false);
+      setIsAnalyzing(false);
     }
   };
 
@@ -217,38 +218,43 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
             <button onClick={onClose} className="p-1 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600"><XIcon /></button>
           </div>
         </div>
-        
+
         <div className="flex border-b border-slate-200 dark:border-slate-700 px-6">
-            <button onClick={() => setImportMode('csv')} className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${importMode === 'csv' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                Importar desde CSV
+          <button onClick={() => setImportMode('csv')} className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${importMode === 'csv' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            Importar desde CSV
+          </button>
+          {aiFeatures.studentExtraction && (
+            <button
+              onClick={() => setImportMode('image')}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${importMode === 'image' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+              <SparklesIcon className="w-4 h-4" /> Importar desde Imagen (IA)
             </button>
-            <button onClick={() => setImportMode('image')} className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${importMode === 'image' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-                <SparklesIcon className="w-4 h-4" /> Importar desde Imagen (IA)
-            </button>
+          )}
         </div>
 
         <div className="flex-grow overflow-y-auto p-6 space-y-6">
           {importMode === 'csv' ? (
-             <div className="p-4 bg-blue-50 dark:bg-blue-900/40 border-l-4 border-blue-500 text-blue-800 dark:text-blue-200">
-                <p className="font-bold">Instrucciones</p>
-                <ul className="list-disc list-inside text-sm mt-1 space-y-1">
-                  <li>El archivo debe ser formato CSV.</li>
-                  <li>La primera fila debe contener las cabeceras: <strong>name</strong> (obligatorio), gender, email, phone, birthDate (opcional).</li>
-                  <li>La columna `gender` debe ser 'M' (Masculino) o 'F' (Femenino).</li>
-                  <li>La columna `birthDate` debe estar en formato <strong>AAAA-MM-DD</strong>.</li>
-                  <li><button onClick={handleDownloadTemplate} className="font-semibold text-blue-600 dark:text-blue-300 hover:underline flex items-center gap-1"><DownloadIcon className="w-4 h-4"/>Descargue una plantilla de ejemplo.</button></li>
-                </ul>
-             </div>
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/40 border-l-4 border-blue-500 text-blue-800 dark:text-blue-200">
+              <p className="font-bold">Instrucciones</p>
+              <ul className="list-disc list-inside text-sm mt-1 space-y-1">
+                <li>El archivo debe ser formato CSV.</li>
+                <li>La primera fila debe contener las cabeceras: <strong>name</strong> (obligatorio), gender, email, phone, birthDate (opcional).</li>
+                <li>La columna `gender` debe ser 'M' (Masculino) o 'F' (Femenino).</li>
+                <li>La columna `birthDate` debe estar en formato <strong>AAAA-MM-DD</strong>.</li>
+                <li><button onClick={handleDownloadTemplate} className="font-semibold text-blue-600 dark:text-blue-300 hover:underline flex items-center gap-1"><DownloadIcon className="w-4 h-4" />Descargue una plantilla de ejemplo.</button></li>
+              </ul>
+            </div>
           ) : (
-             <div className="p-4 bg-purple-50 dark:bg-purple-900/40 border-l-4 border-purple-500 text-purple-800 dark:text-purple-200">
-                <p className="font-bold flex items-center"><SparklesIcon className="w-5 h-5 mr-2" />Instrucciones para Importar con IA</p>
-                <ul className="list-disc list-inside text-sm mt-1 space-y-1">
-                  <li>Tome una foto clara y bien iluminada de su lista de estudiantes.</li>
-                  <li>Asegúrese de que el texto sea legible y no esté borroso.</li>
-                  <li>La IA funciona mejor con listas impresas o con escritura clara.</li>
-                  <li>El sistema intentará extraer Nombres y Números de Orden.</li>
-                </ul>
-             </div>
+            <div className="p-4 bg-purple-50 dark:bg-purple-900/40 border-l-4 border-purple-500 text-purple-800 dark:text-purple-200">
+              <p className="font-bold flex items-center"><SparklesIcon className="w-5 h-5 mr-2" />Instrucciones para Importar con IA</p>
+              <ul className="list-disc list-inside text-sm mt-1 space-y-1">
+                <li>Tome una foto clara y bien iluminada de su lista de estudiantes.</li>
+                <li>Asegúrese de que el texto sea legible y no esté borroso.</li>
+                <li>La IA funciona mejor con listas impresas o con escritura clara.</li>
+                <li>El sistema intentará extraer Nombres y Números de Orden.</li>
+              </ul>
+            </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
@@ -260,37 +266,37 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
               </select>
             </div>
             {importMode === 'csv' ? (
-                <div>
-                  <label htmlFor="csv-file-input" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Archivo CSV</label>
-                  <input id="csv-file-input" type="file" accept=".csv" onChange={handleCsvFileChange} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 dark:file:bg-indigo-900/50 file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-100" />
-                </div>
+              <div>
+                <label htmlFor="csv-file-input" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Archivo CSV</label>
+                <input id="csv-file-input" type="file" accept=".csv" onChange={handleCsvFileChange} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 dark:file:bg-indigo-900/50 file:text-indigo-700 dark:file:text-indigo-300 hover:file:bg-indigo-100" />
+              </div>
             ) : (
-                <div>
-                  <label htmlFor="image-file-input" className="w-full flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 h-full">
-                      <CameraIcon className="w-5 h-5 text-slate-500"/>
-                      <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{file ? file.name : 'Seleccionar Imagen'}</span>
-                  </label>
-                  <input id="image-file-input" type="file" accept="image/*" onChange={handleImageFileChange} className="hidden" />
-                </div>
+              <div>
+                <label htmlFor="image-file-input" className="w-full flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 h-full">
+                  <CameraIcon className="w-5 h-5 text-slate-500" />
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{file ? file.name : 'Seleccionar Imagen'}</span>
+                </label>
+                <input id="image-file-input" type="file" accept="image/*" onChange={handleImageFileChange} className="hidden" />
+              </div>
             )}
           </div>
-          
+
           {imagePreviewUrl && !isAnalyzing && importMode === 'image' && (
             <div className="mt-2">
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Vista Previa de la Imagen</h3>
-                <img src={imagePreviewUrl} alt="Previsualización de la lista de estudiantes" className="max-w-full max-h-48 mx-auto rounded-lg border dark:border-slate-600 shadow-sm"/>
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">Vista Previa de la Imagen</h3>
+              <img src={imagePreviewUrl} alt="Previsualización de la lista de estudiantes" className="max-w-full max-h-48 mx-auto rounded-lg border dark:border-slate-600 shadow-sm" />
             </div>
           )}
-          
+
           {error && <p className="text-red-600 dark:text-red-400 text-sm font-semibold text-center">{error}</p>}
 
           {isAnalyzing && (
             <div className="text-center p-4">
-                <p className="text-indigo-600 dark:text-indigo-400 font-semibold animate-pulse">Analizando imagen con IA, por favor espere...</p>
-                <div className="w-12 h-12 mx-auto mt-4 border-4 border-indigo-200 border-t-indigo-500 rounded-full animate-spin"></div>
+              <p className="text-indigo-600 dark:text-indigo-400 font-semibold animate-pulse">Analizando imagen con IA, por favor espere...</p>
+              <div className="w-12 h-12 mx-auto mt-4 border-4 border-indigo-200 border-t-indigo-500 rounded-full animate-spin"></div>
             </div>
           )}
-          
+
           {parseResult && (
             <div>
               <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">Previsualización de Datos</h3>
@@ -307,7 +313,7 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                      {parseResult.valid.slice(0,10).map((s, i) => (
+                      {parseResult.valid.slice(0, 10).map((s, i) => (
                         <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                           <td className="p-2">{s.name}</td>
                           <td className="p-2">{s.orderNumber}</td>
@@ -320,9 +326,9 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
                   {parseResult.valid.length > 10 && <p className="text-center text-xs p-1 bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400">...y {parseResult.valid.length - 10} más.</p>}
                 </div>
               )}
-               {parseResult.invalid.length > 0 && (
+              {parseResult.invalid.length > 0 && (
                 <div className="mt-4">
-                  <p className="font-bold text-yellow-600 dark:text-yellow-400 flex items-center"><ExclamationIcon className="w-5 h-5 mr-2"/> {parseResult.invalid.length} fila(s) con errores (no se importarán):</p>
+                  <p className="font-bold text-yellow-600 dark:text-yellow-400 flex items-center"><ExclamationIcon className="w-5 h-5 mr-2" /> {parseResult.invalid.length} fila(s) con errores (no se importarán):</p>
                   <ul className="text-xs list-disc list-inside mt-1 text-slate-500 dark:text-slate-400">
                     {parseResult.invalid.map(inv => (
                       <li key={inv.row}>Fila {inv.row}: {inv.error}</li>

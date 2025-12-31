@@ -41,7 +41,7 @@ import type {
   User, View, Class, Student, AttendanceRecord, AnecdotalRecord,
   EvaluationInstrument, Grade, RecoveryGrade, FundamentalCompetency, Competency,
   TeacherProfileData, JournalEntry, Resource, CustomEvent, FontSize, DailyNote,
-  LessonPlan, EvaluationPeriod, CompetencyGroup
+  LessonPlan, EvaluationPeriod, CompetencyGroup, AIFeatures
 } from './types';
 import { auth } from './firebase';
 
@@ -75,6 +75,33 @@ function App() {
   });
 
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+
+  const [aiFeatures, setAiFeatures] = useState<AIFeatures>(() => {
+    try {
+      const saved = window.localStorage.getItem('teacherkit-aiFeatures');
+      return saved ? JSON.parse(saved) : {
+        summaryGeneration: false,
+        criteriaGeneration: false,
+        lessonPlanning: false,
+        studentExtraction: false,
+        audioAnalysis: false,
+        vicenteAssistant: false,
+      };
+    } catch (e) {
+      return {
+        summaryGeneration: false,
+        criteriaGeneration: false,
+        lessonPlanning: false,
+        studentExtraction: false,
+        audioAnalysis: false,
+        vicenteAssistant: false,
+      };
+    }
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem('teacherkit-aiFeatures', JSON.stringify(aiFeatures));
+  }, [aiFeatures]);
 
   // Data State
   const [classes, setClasses] = useState<Class[]>([]);
@@ -570,6 +597,10 @@ function App() {
     await api.setFontSize(size);
     setFontSize(size);
   };
+  const handleSetAiFeatures = async (features: AIFeatures) => {
+    await api.setAIFeatures(features);
+    setAiFeatures(features);
+  };
   const handleToggleSidebarCollapse = async () => {
     const newValue = !isSidebarCollapsed;
     await api.setIsSidebarCollapsed(newValue);
@@ -615,6 +646,7 @@ function App() {
       GRADEBOOK_GRADES: 'Calificador',
       GRADEBOOK_INSTRUMENTS: 'Calificador',
       GRADEBOOK_COMPETENCIES: 'Calificador',
+      SETTINGS_AI: 'Inteligencia Artificial',
       SETTINGS_APPEARANCE: 'Configuraciones',
       SETTINGS_RECYCLE_BIN: 'Papelera de Reciclaje',
       TEACHER_PROFILE: 'Perfil Docente',
@@ -649,7 +681,20 @@ function App() {
 
     switch (currentView) {
       case 'DASHBOARD':
-        return <Dashboard userName={user.name} classes={classes} students={students} instruments={instruments} attendance={attendance} grades={grades} onNavigate={setCurrentView} onAddAnecdoteClick={() => setIsAddAnecdoteModalOpen(true)} selectedClassId={selectedClassId} />;
+        return (
+          <Dashboard
+            userName={user.name}
+            classes={classes}
+            students={students}
+            instruments={instruments}
+            attendance={attendance}
+            grades={grades}
+            onNavigate={setCurrentView}
+            onAddAnecdoteClick={() => setIsAddAnecdoteModalOpen(true)}
+            selectedClassId={selectedClassId}
+            aiFeatures={aiFeatures}
+          />
+        );
       case 'CLASSES':
         return <div className="p-4 sm:p-8 space-y-6">
           <div className="flex justify-between items-center">
@@ -684,7 +729,7 @@ function App() {
         return <StudentManager students={students} classes={classes} onViewProfile={(s) => { setSelectedStudent(s); setCurrentView('STUDENT_PROFILE'); }} onAddClassClick={() => setIsAddClassModalOpen(true)} onAddStudentClick={(id) => { setClassIdForNewStudent(id); setIsAddStudentModalOpen(true); }} onImportStudentsClick={() => setIsStudentImportModalOpen(true)} onMoveStudentClick={(s) => { setStudentToMove(s); setIsMoveStudentModalOpen(true); }} onEditStudentClick={(s) => { setStudentToEdit(s); setIsEditStudentModalOpen(true); }} onMoveStudentBulkClick={(s) => { setStudentsToMoveBulk(s); setIsMoveStudentBulkModalOpen(true); }} onEditStudentBulkClick={(s) => { setStudentsToEditBulk(s); setIsEditStudentBulkModalOpen(true); }} onMoveToBinClick={(s) => { setStudentsToMoveToBin([s]); }} onMoveToBinBulkClick={(s) => { setStudentsToMoveToBin(s); }} activeStudentId={activeStudentIdValue} selectedClassId={selectedClassId} onSelectClass={handleSetSelectedClassId} />;
       case 'STUDENT_PROFILE':
         if (selectedStudent) {
-          return <StudentProfile student={selectedStudent} anecdotes={anecdotes} attendance={attendance} classes={classes} onBack={() => setCurrentView('STUDENTS')} onAddAnecdote={(anecdote) => handleAddAnecdote({ ...anecdote, studentIds: [anecdote.studentId] })} onViewGrades={(id) => { setStudentFilter(id); setCurrentView('GRADEBOOK_GRADES'); }} onUpdateStudent={(data) => handleEditStudent(selectedStudent.id, data)} />;
+          return <StudentProfile student={selectedStudent} anecdotes={anecdotes} attendance={attendance} classes={classes} onBack={() => setCurrentView('STUDENTS')} onAddAnecdote={(anecdote) => handleAddAnecdote({ ...anecdote, studentIds: [anecdote.studentId] })} onViewGrades={(id) => { setStudentFilter(id); setCurrentView('GRADEBOOK_GRADES'); }} onUpdateStudent={(data) => handleEditStudent(selectedStudent.id, data)} aiFeatures={aiFeatures} />;
         }
         setCurrentView('STUDENTS'); return null;
       case 'ATTENDANCE':
@@ -698,15 +743,25 @@ function App() {
         return <GradebookManager students={students} classes={classes} fundamentalCompetencies={fundamentalCompetencies} competencies={competencies} instruments={instruments} grades={grades} recoveryGrades={recoveryGrades} onAddCompetencyClick={() => setIsAddCompetencyModalOpen(true)} onAddInstrumentClick={() => setIsAddInstrumentModalOpen(true)} onEditInstrumentClick={(inst) => { setInstrumentToEdit(inst); setIsEditInstrumentModalOpen(true); }} onViewInstrumentDetails={(inst) => { setInstrumentToView(inst); setIsInstrumentDetailModalOpen(true); }} onAddRecoveryGradeClick={(s, p, g, score) => { setRecoveryGradeContext({ student: s, period: p, competencyGroup: g, currentScore: score }); setIsAddRecoveryGradeModalOpen(true); }} initialTab={tab} onExpressGradingClick={(inst, sId) => { setGradingInstrument(inst); setExpressGradingStudentId(sId || null); setIsExpressGradingModalOpen(true); }} studentFilter={studentFilter} onClearStudentFilter={() => setStudentFilter(null)} initialFundamentalFilter={initialFundamentalFilter} selectedClassId={selectedClassId} onSelectClass={handleSetSelectedClassId} onAddStudentClick={(id) => { setClassIdForNewStudent(id); setIsAddStudentModalOpen(true); }} />;
       }
       case 'REPORTS':
-        return <Reports students={students} classes={classes} attendance={attendance} anecdotes={anecdotes} instruments={instruments} grades={grades} recoveryGrades={recoveryGrades} teacherName={user.name} fundamentalCompetencies={fundamentalCompetencies} competencies={competencies} selectedClassId={selectedClassId} onSelectClass={handleSetSelectedClassId} />;
+        return <Reports students={students} classes={classes} attendance={attendance} anecdotes={anecdotes} instruments={instruments} grades={grades} recoveryGrades={recoveryGrades} teacherName={user.name} fundamentalCompetencies={fundamentalCompetencies} competencies={competencies} selectedClassId={selectedClassId} onSelectClass={handleSetSelectedClassId} aiFeatures={aiFeatures} />;
       case 'TEACHER_PROFILE':
         return <TeacherProfile profile={teacherProfile} classes={classes} students={students} journalEntries={journalEntries} resources={resources} onAddJournalEntry={handleAddJournalEntry} onAddResource={handleAddResource} onClassClick={(cls) => setClassToView(cls)} onLogout={() => setIsLogoutConfirmOpen(true)} onUpdateProfile={handleUpdateTeacherProfile} />;
       case 'CALENDAR':
         return <CalendarView classes={classes} instruments={instruments} customEvents={customEvents} onAddEvent={handleAddCustomEvent} onUpdateEvent={handleUpdateCustomEvent} onDeleteEvent={handleDeleteCustomEvent} />;
       case 'LESSON_PLANNER':
-        return <LessonPlanner classes={classes} lessonPlans={lessonPlans} onAddLessonPlan={handleAddLessonPlan} onUpdateLessonPlan={handleUpdateLessonPlan} onDeleteLessonPlan={handleDeleteLessonPlan} />;
+        return <LessonPlanner classes={classes} lessonPlans={lessonPlans} onAddLessonPlan={handleAddLessonPlan} onUpdateLessonPlan={handleUpdateLessonPlan} onDeleteLessonPlan={handleDeleteLessonPlan} aiFeatures={aiFeatures} />;
       case 'SETTINGS_APPEARANCE':
-        return <SettingsManager isDarkMode={isDarkMode} setIsDarkMode={handleSetIsDarkMode} fontSize={fontSize} setFontSize={handleSetFontSize} activeSubView={'APPEARANCE'} currentUserEmail={user.email} />;
+      case 'SETTINGS_AI':
+        return <SettingsManager
+          isDarkMode={isDarkMode}
+          setIsDarkMode={handleSetIsDarkMode}
+          fontSize={fontSize}
+          setFontSize={handleSetFontSize}
+          activeSubView={currentView === 'SETTINGS_APPEARANCE' ? 'APPEARANCE' : 'AI'}
+          aiFeatures={aiFeatures}
+          setAiFeatures={handleSetAiFeatures}
+          currentUserEmail={user.email}
+        />;
       case 'SETTINGS_RECYCLE_BIN':
         return <RecycleBin deletedStudents={deletedStudents} classes={classes} onRestore={handleRestoreStudent} onPermanentDelete={(s) => setStudentToPermanentlyDelete(s)} deletedClasses={deletedClasses} onRestoreClass={handleRestoreClass} onPermanentDeleteClass={(c) => setClassToPermanentlyDelete(c)} />;
       default:
@@ -744,11 +799,11 @@ function App() {
       <MoveStudentBulkModal isOpen={isMoveStudentBulkModalOpen} onClose={() => { setIsMoveStudentBulkModalOpen(false); setStudentsToMoveBulk([]); }} students={studentsToMoveBulk} classes={classes} onMoveStudents={handleMoveStudentsBulk} />
       <EditStudentBulkModal isOpen={isEditStudentBulkModalOpen} onClose={() => { setIsEditStudentBulkModalOpen(false); setStudentsToEditBulk([]); }} students={studentsToEditBulk} classes={classes} onSave={handleEditStudentsBulk} />
 
-      <StudentImportModal isOpen={isStudentImportModalOpen} onClose={() => setIsStudentImportModalOpen(false)} onImport={handleImportStudents} classes={classes} />
+      <StudentImportModal isOpen={isStudentImportModalOpen} onClose={() => setIsStudentImportModalOpen(false)} onImport={handleImportStudents} classes={classes} aiFeatures={aiFeatures} />
       <AddAnecdoteModal isOpen={isAddAnecdoteModalOpen} onClose={() => setIsAddAnecdoteModalOpen(false)} students={students} onAddAnecdote={(a) => handleAddAnecdote(a)} />
 
-      <AddInstrumentModal isOpen={isAddInstrumentModalOpen} onClose={() => setIsAddInstrumentModalOpen(false)} onAddInstrument={handleAddInstrument} classes={classes} competencies={competencies} />
-      <EditInstrumentModal isOpen={isEditInstrumentModalOpen} onClose={() => { setIsEditInstrumentModalOpen(false); setInstrumentToEdit(null); }} onEditInstrument={handleEditInstrument} instrument={instrumentToEdit} classes={classes} competencies={competencies} />
+      <AddInstrumentModal isOpen={isAddInstrumentModalOpen} onClose={() => setIsAddInstrumentModalOpen(false)} onAddInstrument={handleAddInstrument} classes={classes} competencies={competencies} aiFeatures={aiFeatures} />
+      <EditInstrumentModal isOpen={isEditInstrumentModalOpen} onClose={() => { setIsEditInstrumentModalOpen(false); setInstrumentToEdit(null); }} onEditInstrument={handleEditInstrument} instrument={instrumentToEdit} classes={classes} competencies={competencies} aiFeatures={aiFeatures} />
       <InstrumentDetailModal isOpen={isInstrumentDetailModalOpen} onClose={() => { setIsInstrumentDetailModalOpen(false); setInstrumentToView(null); }} instrument={instrumentToView} competencies={competencies} onExpressGradingClick={(inst) => { setIsInstrumentDetailModalOpen(false); setGradingInstrument(inst); setIsExpressGradingModalOpen(true); }} onEditInstrumentClick={(inst) => { setIsInstrumentDetailModalOpen(false); setInstrumentToEdit(inst); setIsEditInstrumentModalOpen(true); }} />
       <ExpressGradingModal isOpen={isExpressGradingModalOpen} onClose={() => { setIsExpressGradingModalOpen(false); setGradingInstrument(null); setExpressGradingStudentId(null); }} instrument={gradingInstrument} students={students} grades={grades} onSaveGrades={handleSaveExpressGrades} initialFocusStudentId={expressGradingStudentId} />
 

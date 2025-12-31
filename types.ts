@@ -1,6 +1,6 @@
 
 
-export type View = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'REPORTS' | 'STUDENT_PROFILE' | 'GRADEBOOK_GRADES' | 'GRADEBOOK_INSTRUMENTS' | 'GRADEBOOK_COMPETENCIES' | 'SETTINGS_APPEARANCE' | 'SETTINGS_RECYCLE_BIN' | 'TEACHER_PROFILE' | 'CALENDAR' | 'CLASSES' | 'LESSON_PLANNER';
+export type View = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'REPORTS' | 'STUDENT_PROFILE' | 'GRADEBOOK_GRADES' | 'GRADEBOOK_INSTRUMENTS' | 'GRADEBOOK_COMPETENCIES' | 'SETTINGS_APPEARANCE' | 'SETTINGS_AI' | 'SETTINGS_RECYCLE_BIN' | 'TEACHER_PROFILE' | 'CALENDAR' | 'CLASSES' | 'LESSON_PLANNER';
 
 export type FontSize = 'sm' | 'base' | 'lg';
 
@@ -85,88 +85,88 @@ export type CompetencyGroup = 'G1' | 'G2' | 'G3' | 'G4';
 
 
 export interface FundamentalCompetency {
-    id: string;
-    name: string;
-    description: string;
-    group: CompetencyGroup;
+  id: string;
+  name: string;
+  description: string;
+  group: CompetencyGroup;
 }
 
 export enum AchievementLevel {
-    BEGINNING = 'Inicio',
-    DEVELOPING = 'En Desarrollo',
-    PROFICIENT = 'Logrado',
-    EXEMPLARY = 'Excelente',
+  BEGINNING = 'Inicio',
+  DEVELOPING = 'En Desarrollo',
+  PROFICIENT = 'Logrado',
+  EXEMPLARY = 'Excelente',
 }
 
 export interface Competency {
-    id:string;
-    classId: string;
-    fundamentalId: string;
-    code: string; // e.g., CE-LEI4
-    name: string;
-    description: string;
-    indicators: { id: string; text: string; }[];
+  id: string;
+  classId: string;
+  fundamentalId: string;
+  code: string; // e.g., CE-LEI4
+  name: string;
+  description: string;
+  indicators: { id: string; text: string; }[];
 }
 
 export interface Criterion {
-    id: string;
-    text: string;
+  id: string;
+  text: string;
 }
 
 export type InstrumentType = 'Prueba Corta' | 'Examen' | 'Tarea' | 'Proyecto' | 'Observación' | 'Lista de Cotejo' | 'Escala Estimativa' | 'Rúbrica';
 
 export interface EvaluationInstrument {
-    id: string;
-    classId: string;
-    name: string;
-    type: InstrumentType;
-    date: string; // YYYY-MM-DD
-    totalPoints: number;
-    competencyIds: string[];
-    period: EvaluationPeriod;
-    contenidos?: string;
-    actividades?: string;
-    criteria?: Criterion[];
+  id: string;
+  classId: string;
+  name: string;
+  type: InstrumentType;
+  date: string; // YYYY-MM-DD
+  totalPoints: number;
+  competencyIds: string[];
+  period: EvaluationPeriod;
+  contenidos?: string;
+  actividades?: string;
+  criteria?: Criterion[];
 }
 
 export interface Grade {
-    studentId: string;
-    instrumentId: string;
-    score: number | null; // null for not yet graded
-    criteriaScores?: Record<string, boolean | number | null>; // { criterionId: score }
+  studentId: string;
+  instrumentId: string;
+  score: number | null; // null for not yet graded
+  criteriaScores?: Record<string, boolean | number | null>; // { criterionId: score }
 }
 
 export interface RecoveryGrade {
-    id: string;
-    studentId: string;
-    classId: string;
-    period: EvaluationPeriod;
-    competencyGroup: CompetencyGroup;
-    score: number;
+  id: string;
+  studentId: string;
+  classId: string;
+  period: EvaluationPeriod;
+  competencyGroup: CompetencyGroup;
+  score: number;
 }
 
 
 // Teacher Profile Types
 export interface TeacherProfileData {
-    name: string;
-    email: string;
-    phone: string;
-    specialization: string;
-    experienceYears: number;
-    profilePictureUrl: string;
+  name: string;
+  email: string;
+  phone: string;
+  specialization: string;
+  experienceYears: number;
+  profilePictureUrl: string;
 }
 
 export interface JournalEntry {
-    id: string;
-    date: string; // ISO string
-    content: string;
+  id: string;
+  date: string; // ISO string
+  content: string;
 }
 
 export interface Resource {
-    id: string;
-    title: string;
-    url: string;
-    description: string;
+  id: string;
+  title: string;
+  url: string;
+  description: string;
 }
 
 // User Authentication
@@ -185,6 +185,16 @@ export interface CustomEvent {
   description?: string;
   time?: string; // e.g., "10:00"
   color: string; // e.g., '#ef4444'
+}
+
+// AI Features
+export interface AIFeatures {
+  summaryGeneration: boolean; // "Vicente Resume"
+  criteriaGeneration: boolean; // "Vicente Criterios"
+  lessonPlanning: boolean; // "Planificar con Vicente"
+  studentExtraction: boolean; // "Vicente Extractor"
+  audioAnalysis: boolean; // "Vicente Audio"
+  vicenteAssistant: boolean; // "Vicente Dashboard"
 }
 
 // Lesson Planner Types
@@ -230,7 +240,7 @@ export interface FirestoreCompetency {
   fundamentalId: string;
   // In a real schema, you might split contents here, but based on source JSON, 
   // contents are often at Grade level. We'll keep indicators here.
-  indicators: { id: string; text: string }[]; 
+  indicators: { id: string; text: string }[];
 }
 
 // Collection: /indicators
@@ -264,8 +274,8 @@ export interface CurriculumSubject {
 }
 
 export interface CurriculumLevel {
-    name: string;
-    subjects: CurriculumSubject[];
+  name: string;
+  subjects: CurriculumSubject[];
 }
 
 export interface CurriculumData {

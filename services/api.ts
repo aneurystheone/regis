@@ -12,7 +12,7 @@ import {
     query,
     where
 } from "firebase/firestore";
-import type { Class, Student, AttendanceRecord, AnecdotalRecord, Competency, EvaluationInstrument, Grade, FundamentalCompetency, TeacherProfileData, JournalEntry, Resource, User, CustomEvent, RecoveryGrade, FontSize, DailyNote, CurriculumData, LessonPlan } from '../types';
+import type { Class, Student, AttendanceRecord, AnecdotalRecord, Competency, EvaluationInstrument, Grade, FundamentalCompetency, TeacherProfileData, JournalEntry, Resource, User, CustomEvent, RecoveryGrade, FontSize, DailyNote, CurriculumData, LessonPlan, AIFeatures } from '../types';
 
 let curriculumCache: CurriculumData | null = null;
 
@@ -612,5 +612,18 @@ export const api = {
     async getFontSize(): Promise<FontSize> { return (localStorage.getItem('teacherkit-fontSize') as FontSize) || 'base'; },
     async setFontSize(size: FontSize): Promise<void> { localStorage.setItem('teacherkit-fontSize', size); },
     async getLastSelectedClassId(): Promise<string | null> { return localStorage.getItem('teacherkit-lastSelectedClassId'); },
-    async setLastSelectedClassId(classId: string): Promise<void> { localStorage.setItem('teacherkit-lastSelectedClassId', classId); }
+    async setLastSelectedClassId(classId: string): Promise<void> { localStorage.setItem('teacherkit-lastSelectedClassId', classId); },
+    async getAIFeatures(): Promise<AIFeatures> {
+        return JSON.parse(localStorage.getItem('teacherkit-aiFeatures') || JSON.stringify({
+            summaryGeneration: false,
+            criteriaGeneration: false,
+            lessonPlanning: false,
+            studentExtraction: false,
+            audioAnalysis: false,
+            vicenteAssistant: false,
+        }));
+    },
+    async setAIFeatures(features: AIFeatures): Promise<void> {
+        localStorage.setItem('teacherkit-aiFeatures', JSON.stringify(features));
+    }
 };

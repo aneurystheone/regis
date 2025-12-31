@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import type { Class, Student, EvaluationInstrument, AttendanceRecord, Grade } from '../types';
+import type { Class, Student, EvaluationInstrument, AttendanceRecord, Grade, AIFeatures } from '../types';
 import {
   ClipboardCheckIcon,
   UserGroupIcon,
@@ -19,9 +19,10 @@ interface DashboardProps {
   instruments: EvaluationInstrument[];
   attendance: AttendanceRecord[];
   grades: Grade[];
-  onNavigate: (view: 'STUDENTS' | 'ATTENDANCE' | 'GRADEBOOK_INSTRUMENTS' | 'CLASSES' | 'LESSON_PLANNER') => void;
+  onNavigate: (view: any) => void;
   onAddAnecdoteClick: () => void;
   selectedClassId: string | null;
+  aiFeatures: AIFeatures;
 }
 
 const StatCard: React.FC<{
@@ -64,15 +65,17 @@ const ActionButton: React.FC<{
   secondary?: boolean;
   green?: boolean;
   onClick: () => void;
-}> = ({ label, icon, primary, secondary, green, onClick }) => {
-  let baseClass = "flex-1 flex items-center justify-center gap-3 py-3.5 px-6 rounded-2xl font-bold transition-all active:scale-95 shadow-sm";
+  disabled?: boolean;
+  title?: string;
+}> = ({ label, icon, primary, secondary, green, onClick, disabled, title }) => {
+  let baseClass = "flex-1 flex items-center justify-center gap-3 py-3.5 px-6 rounded-2xl font-bold transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed";
   let colorClass = "";
   if (primary) colorClass = "bg-brand-primary text-white hover:bg-brand-secondary hover:shadow-brand-primary/20";
   else if (green) colorClass = "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100";
   else colorClass = "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50";
 
   return (
-    <button onClick={onClick} className={`${baseClass} ${colorClass}`}>
+    <button onClick={onClick} className={`${baseClass} ${colorClass}`} disabled={disabled} title={title}>
       {icon}
       <span>{label}</span>
       <ChevronRightIcon className={`w-4 h-4 ml-auto opacity-50 ${primary ? 'text-white' : 'text-slate-400'}`} />
@@ -122,7 +125,7 @@ const AlertItem: React.FC<{
 )
 
 
-export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, students, instruments, attendance, grades, onNavigate, onAddAnecdoteClick, selectedClassId }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, students, instruments, attendance, grades, onNavigate, onAddAnecdoteClick, selectedClassId, aiFeatures }) => {
   const selectedClass = useMemo(() => classes.find(c => c.id === selectedClassId), [classes, selectedClassId]);
   const classStudents = useMemo(() => students.filter(s => s.classId === selectedClassId), [students, selectedClassId]);
 
@@ -235,12 +238,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
           icon={<PencilSquareIcon className="w-5 h-5" />}
           onClick={() => onNavigate('GRADEBOOK_INSTRUMENTS')}
         />
-        <ActionButton
-          label="Ayúdame con..."
-          icon={<SparklesIcon className="w-5 h-5" />}
-          green
-          onClick={() => onNavigate('LESSON_PLANNER')}
-        />
+        {aiFeatures.lessonPlanning && (
+          <ActionButton
+            label="Ayúdame con..."
+            icon={<SparklesIcon className="w-5 h-5" />}
+            green
+            onClick={() => onNavigate('LESSON_PLANNER')}
+          />
+        )}
       </div>
 
       {/* WIDGETS GRID */}
@@ -287,51 +292,53 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
         </div>
 
         {/* COLUMN 3: VICENTE */}
-        <div className="bg-gradient-to-br from-emerald-50 to-white dark:from-slate-800 dark:to-slate-900 p-6 rounded-3xl shadow-sm border border-emerald-100 dark:border-slate-700 min-h-[320px] relative overflow-hidden group">
-          {/* Background decoration */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-200/20 rounded-full blur-3xl -mr-10 -mt-10"></div>
+        {aiFeatures.vicenteAssistant && (
+          <div className="bg-gradient-to-br from-emerald-50 to-white dark:from-slate-800 dark:to-slate-900 p-6 rounded-3xl shadow-sm border border-emerald-100 dark:border-slate-700 min-h-[320px] relative overflow-hidden group">
+            {/* Background decoration */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-200/20 rounded-full blur-3xl -mr-10 -mt-10"></div>
 
-          <div className="flex justify-between items-start mb-4 relative z-10">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white">
-                <SparklesIcon className="w-4 h-4" />
+            <div className="flex justify-between items-start mb-4 relative z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white">
+                  <SparklesIcon className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-slate-800 dark:text-white">Vicente</span>
               </div>
-              <span className="font-bold text-slate-800 dark:text-white">Vicente</span>
-            </div>
-            <div className="w-6 h-6 text-emerald-500">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5z" /></svg>
-            </div>
-          </div>
-
-          {/* Robot Placeholder Image */}
-          <div className="flex justify-center my-4 relative z-10">
-            {/* Replaced with a friendly robot-like illustration or placeholder */}
-            <img
-              src="https://api.dicebear.com/7.x/bottts/svg?seed=Vicente&backgroundColor=transparent"
-              alt="Vicente Robot"
-              className="w-32 h-32 drop-shadow-xl transform group-hover:scale-110 transition-transform duration-500"
-            />
-          </div>
-
-          <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100 dark:border-slate-600 relative z-10 mt-auto">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-indigo-900 border-2 border-white warm-gray-50 flex-shrink-0">
-                <img src="https://ui-avatars.com/api/?name=Vicente&background=3CCF91&color=1F3A5F" alt="V" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-bold text-slate-800 dark:text-white">Vicente</p>
-                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight mt-1">
-                  ¿Quieres que revise inconsistencias en las calificaciones?
-                </p>
+              <div className="w-6 h-6 text-emerald-500">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5z" /></svg>
               </div>
             </div>
-            <button onClick={() => onNavigate('GRADEBOOK_GRADES')} className="w-full mt-3 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
-              <CheckIcon className="w-3 h-3" />
-              Revisar ahora
-              <ChevronRightIcon className="w-3 h-3 opacity-70" />
-            </button>
+
+            {/* Robot Placeholder Image */}
+            <div className="flex justify-center my-4 relative z-10">
+              {/* Replaced with a friendly robot-like illustration or placeholder */}
+              <img
+                src="https://api.dicebear.com/7.x/bottts/svg?seed=Vicente&backgroundColor=transparent"
+                alt="Vicente Robot"
+                className="w-32 h-32 drop-shadow-xl transform group-hover:scale-110 transition-transform duration-500"
+              />
+            </div>
+
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100 dark:border-slate-600 relative z-10 mt-auto">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-indigo-900 border-2 border-white warm-gray-50 flex-shrink-0">
+                  <img src="https://ui-avatars.com/api/?name=Vicente&background=3CCF91&color=1F3A5F" alt="V" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-slate-800 dark:text-white">Vicente</p>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight mt-1">
+                    ¿Quieres que revise inconsistencias en las calificaciones?
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => onNavigate('GRADEBOOK_GRADES')} className="w-full mt-3 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
+                <CheckIcon className="w-3 h-3" />
+                Revisar ahora
+                <ChevronRightIcon className="w-3 h-3 opacity-70" />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
       </div>
     </div>
