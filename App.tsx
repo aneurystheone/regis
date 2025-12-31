@@ -646,6 +646,7 @@ function App() {
       GRADEBOOK_GRADES: 'Calificador',
       GRADEBOOK_INSTRUMENTS: 'Calificador',
       GRADEBOOK_COMPETENCIES: 'Calificador',
+      SETTINGS: 'Ajustes',
       SETTINGS_AI: 'Inteligencia Artificial',
       SETTINGS_APPEARANCE: 'Configuraciones',
       SETTINGS_RECYCLE_BIN: 'Papelera de Reciclaje',
@@ -659,7 +660,7 @@ function App() {
   const renderView = () => {
     if (!teacherProfile) return null;
 
-    if (classes.length === 0 && !['SETTINGS_APPEARANCE', 'SETTINGS_RECYCLE_BIN', 'TEACHER_PROFILE', 'CLASSES', 'CALENDAR'].includes(currentView)) {
+    if (classes.length === 0 && !['SETTINGS', 'SETTINGS_APPEARANCE', 'SETTINGS_RECYCLE_BIN', 'TEACHER_PROFILE', 'CLASSES', 'CALENDAR'].includes(currentView)) {
       return (
         <div className="p-8 text-center flex flex-col items-center justify-center h-full">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">¡Bienvenido!</h2>
@@ -750,6 +751,7 @@ function App() {
         return <CalendarView classes={classes} instruments={instruments} customEvents={customEvents} onAddEvent={handleAddCustomEvent} onUpdateEvent={handleUpdateCustomEvent} onDeleteEvent={handleDeleteCustomEvent} />;
       case 'LESSON_PLANNER':
         return <LessonPlanner classes={classes} lessonPlans={lessonPlans} onAddLessonPlan={handleAddLessonPlan} onUpdateLessonPlan={handleUpdateLessonPlan} onDeleteLessonPlan={handleDeleteLessonPlan} aiFeatures={aiFeatures} />;
+      case 'SETTINGS':
       case 'SETTINGS_APPEARANCE':
       case 'SETTINGS_AI':
         return <SettingsManager
@@ -757,10 +759,16 @@ function App() {
           setIsDarkMode={handleSetIsDarkMode}
           fontSize={fontSize}
           setFontSize={handleSetFontSize}
-          activeSubView={currentView === 'SETTINGS_APPEARANCE' ? 'APPEARANCE' : 'AI'}
           aiFeatures={aiFeatures}
           setAiFeatures={handleSetAiFeatures}
           currentUserEmail={user.email}
+          deletedStudents={deletedStudents}
+          classes={classes}
+          onRestore={handleRestoreStudent}
+          onPermanentDelete={(s) => setStudentToPermanentlyDelete(s)}
+          deletedClasses={deletedClasses}
+          onRestoreClass={handleRestoreClass}
+          onPermanentDeleteClass={(c) => setClassToPermanentlyDelete(c)}
         />;
       case 'SETTINGS_RECYCLE_BIN':
         return <RecycleBin deletedStudents={deletedStudents} classes={classes} onRestore={handleRestoreStudent} onPermanentDelete={(s) => setStudentToPermanentlyDelete(s)} deletedClasses={deletedClasses} onRestoreClass={handleRestoreClass} onPermanentDeleteClass={(c) => setClassToPermanentlyDelete(c)} />;

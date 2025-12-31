@@ -77,63 +77,17 @@ export const ProfileDropdownMenu: React.FC<ProfileDropdownMenuProps> = ({
                 <span>Agenda</span>
             </button>
 
-            {/* Ajustes (collapsible) */}
-            <div>
-                <button
-                    onClick={() => setIsAjustesExpanded(!isAjustesExpanded)}
-                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold transition-colors ${['SETTINGS_APPEARANCE', 'SETTINGS_AI', 'SETTINGS_RECYCLE_BIN'].includes(currentView)
-                        ? 'bg-brand-primary/10 text-brand-primary dark:text-brand-secondary'
-                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                        }`}
-                >
-                    <div className="flex items-center gap-3">
-                        <CogIcon className="w-5 h-5" />
-                        <span>Ajustes</span>
-                    </div>
-                    <ChevronDownIcon
-                        className={`w-4 h-4 transition-transform duration-200 ${isAjustesExpanded ? 'rotate-180' : ''
-                            }`}
-                    />
-                </button>
-
-                {/* Ajustes Submenu */}
-                {isAjustesExpanded && (
-                    <div className="bg-slate-50 dark:bg-slate-900/50 border-l-2 border-brand-primary/20 ml-4 my-1">
-                        <button
-                            onClick={() => handleNavigate('SETTINGS_APPEARANCE')}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${currentView === 'SETTINGS_APPEARANCE'
-                                ? 'text-brand-primary dark:text-brand-secondary'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                }`}
-                        >
-                            <MoonIcon className="w-4 h-4" />
-                            <span>Apariencia</span>
-                        </button>
-
-                        <button
-                            onClick={() => handleNavigate('SETTINGS_AI')}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${currentView === 'SETTINGS_AI'
-                                ? 'text-brand-primary dark:text-brand-secondary'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                }`}
-                        >
-                            <SparklesIcon className="w-4 h-4" />
-                            <span>Inteligencia Artificial</span>
-                        </button>
-
-                        <button
-                            onClick={() => handleNavigate('SETTINGS_RECYCLE_BIN')}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-colors ${currentView === 'SETTINGS_RECYCLE_BIN'
-                                ? 'text-brand-primary dark:text-brand-secondary'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                }`}
-                        >
-                            <RecycleBinIcon className="w-4 h-4" />
-                            <span>Papelera</span>
-                        </button>
-                    </div>
-                )}
-            </div>
+            {/* Ajustes */}
+            <button
+                onClick={() => handleNavigate('SETTINGS')}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors ${currentView === 'SETTINGS'
+                    ? 'bg-brand-primary/10 text-brand-primary dark:text-brand-secondary'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+            >
+                <CogIcon className="w-5 h-5" />
+                <span>Ajustes</span>
+            </button>
 
             {/* Divider */}
             <div className="my-2 border-t border-slate-200 dark:border-slate-700"></div>

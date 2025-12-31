@@ -52,7 +52,7 @@ const SubNavItem: React.FC<{
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isOpen, onClose, isSidebarCollapsed, onToggleCollapse }) => {
   const isDashboardActive = currentView === 'DASHBOARD';
   const isGradebookActive = currentView.startsWith('GRADEBOOK');
-  const isSettingsActive = ['SETTINGS_APPEARANCE', 'SETTINGS_RECYCLE_BIN', 'TEACHER_PROFILE', 'CALENDAR'].includes(currentView);
+  const isSettingsActive = ['SETTINGS', 'SETTINGS_APPEARANCE', 'SETTINGS_RECYCLE_BIN', 'TEACHER_PROFILE', 'CALENDAR'].includes(currentView);
 
   const handleNavigation = (view: View) => {
     setCurrentView(view);
