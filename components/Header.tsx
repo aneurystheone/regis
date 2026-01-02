@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MenuIcon, SearchIcon } from './icons';
 import { ProfileDropdownMenu } from './ProfileDropdownMenu';
+import { Avatar } from './Avatar';
 import type { View } from '../types';
 
 interface HeaderProps {
@@ -15,7 +16,6 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ title, userName, userAvatar, onMenuClick, onSearchClick, onNavigate, onLogout, currentView }) => {
-  const defaultAvatar = "https://ui-avatars.com/api/?name=" + encodeURIComponent(userName) + "&background=1F3A5F&color=fff";
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   return (
@@ -51,10 +51,11 @@ export const Header: React.FC<HeaderProps> = ({ title, userName, userAvatar, onM
               <span className="text-xs font-black text-brand-primary dark:text-slate-200 leading-none">{userName}</span>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Maestro</span>
             </div>
-            <img
-              className="w-10 h-10 rounded-xl object-cover border-2 border-brand-bg dark:border-slate-600 shadow-sm group-hover:border-brand-secondary transition-all"
-              src={userAvatar || defaultAvatar}
-              alt="User Avatar"
+            <Avatar
+              name={userName}
+              src={userAvatar}
+              size="md"
+              className="rounded-xl border-2 border-brand-bg dark:border-slate-600 shadow-sm group-hover:border-brand-secondary transition-all"
             />
           </button>
 

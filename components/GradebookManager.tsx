@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Student, Class, Competency, EvaluationInstrument, Grade, EvaluationPeriod, FundamentalCompetency, CompetencyGroup, RecoveryGrade } from '../types';
-import { PlusIcon, AcademicCapIcon, BoltIcon, PencilIcon, DocumentTextIcon, ChevronDownIcon, TrophyIcon, UserGroupIcon, TrashIcon, DocumentDuplicateIcon } from './icons';
+import { PlusIcon, AcademicCapIcon, BoltIcon, PencilIcon, DocumentTextIcon, ChevronDownIcon, StarIcon, UserGroupIcon, TrashIcon, DocumentDuplicateIcon } from './icons';
 import { ClassSelector } from './ClassSelector';
 
 interface GradebookManagerProps {
@@ -755,9 +755,9 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
                 {/* Tabs */}
                 <div className="border-b border-slate-200 dark:border-slate-700">
                     <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs">
-                        <TabButton label="Calificaciones" icon={<TrophyIcon className="w-5 h-5" />} isActive={activeTab === 'GRADES'} onClick={() => setActiveTab('GRADES')} />
-                        <TabButton label="Instrumentos" icon={<DocumentTextIcon className="w-5 h-5" />} isActive={activeTab === 'INSTRUMENTS'} onClick={() => setActiveTab('INSTRUMENTS')} />
                         <TabButton label="Competencias" icon={<AcademicCapIcon className="w-5 h-5" />} isActive={activeTab === 'COMPETENCIES'} onClick={() => setActiveTab('COMPETENCIES')} />
+                        <TabButton label="Instrumentos" icon={<DocumentTextIcon className="w-5 h-5" />} isActive={activeTab === 'INSTRUMENTS'} onClick={() => setActiveTab('INSTRUMENTS')} />
+                        <TabButton label="Calificaciones" icon={<StarIcon className="w-5 h-5" />} isActive={activeTab === 'GRADES'} onClick={() => setActiveTab('GRADES')} />
                     </nav>
                 </div>
 

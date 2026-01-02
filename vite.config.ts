@@ -14,13 +14,13 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'], // Modified includeAssets
         manifest: {
-          name: 'Regis - Gestión Docente Inteligente',
+          name: 'Regis - Gestión Docente', // Modified name
           short_name: 'Regis',
-          description: 'Plataforma inteligente para la gestión académica y seguimiento de estudiantes.',
+          description: 'Herramienta de productividad para docentes dominicanos', // Modified description
           theme_color: '#1F3A5F',
-          background_color: '#F5F7FA',
+          background_color: '#ffffff', // Modified background_color
           display: 'standalone',
           icons: [
             {
@@ -34,15 +34,51 @@ export default defineConfig(({ mode }) => {
               type: 'image/png'
             },
             {
-              src: 'maskable-icon.png',
+              src: 'pwa-512x512.png', // Modified src for third icon
               sizes: '512x512',
               type: 'image/png',
-              purpose: 'maskable'
+              purpose: 'any maskable' // Modified purpose for third icon
             }
           ]
-        }
+        },
+        workbox: {
+          runtimeCaching: [
+            {
+              urlPattern: ({ url }) => {
+                return url.hostname.includes('firebasestorage.googleapis.com');
+              },
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'firebase-storage-images',
+                expiration: {
+                  maxEntries: 200,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 Year
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+          ],
+        },
       })
     ],
+    build: { // Added build configuration
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('firebase')) return 'firebase';
+              if (id.includes('jspdf')) return 'jspdf';
+              if (id.includes('react')) return 'react-vendor';
+              if (id.includes('lucide') || id.includes('icons')) return 'icons';
+              return 'vendor';
+            }
+          },
+        },
+      },
+      chunkSizeWarningLimit: 1000,
+    },
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)

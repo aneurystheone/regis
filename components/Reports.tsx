@@ -2,9 +2,18 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Student, Class, AttendanceRecord, AnecdotalRecord, EvaluationInstrument, Grade, FundamentalCompetency, Competency, RecoveryGrade, CompetencyGroup, EvaluationPeriod, AIFeatures } from '../types';
 import { AttendanceStatus } from '../types';
-import { DownloadIcon, SparklesIcon, AcademicCapIcon, TrophyIcon, DocumentTextIcon } from './icons';
+import { DownloadIcon, SparklesIcon, AcademicCapIcon, StarIcon, DocumentTextIcon } from './icons';
 import { generateStudentSummary } from '../services/geminiService';
 import { ClassSelector } from './ClassSelector';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
+
+// Extend jsPDF type to include autoTable for TypeScript
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF;
+  }
+}
 
 const competencyGroups: CompetencyGroup[] = ['G1', 'G2', 'G3', 'G4'];
 const evaluationPeriods: EvaluationPeriod[] = ['P1', 'P2', 'P3', 'P4'];
@@ -634,7 +643,7 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
                 disabled={isLoading || selectedStudentId !== 'all' || !selectedClassId}
                 className="flex flex-col items-center justify-center text-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-100 dark:border-indigo-800"
               >
-                <TrophyIcon className="w-10 h-10 text-indigo-600 mb-3" />
+                <StarIcon className="w-10 h-10 text-indigo-600 mb-3" />
                 <p className="font-bold text-indigo-900 dark:text-indigo-200 text-lg">Boletín de Calificaciones</p>
                 <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">Registro oficial con P1-P4, RP y Promedios.</p>
               </button>

@@ -177,94 +177,89 @@ function App() {
   const [classToMoveToBin, setClassToMoveToBin] = useState<Class | null>(null);
   const [classToPermanentlyDelete, setClassToPermanentlyDelete] = useState<Class | null>(null);
 
-  // --- Data Loading Logic ---
 
-  const loadAppData = async () => {
-    const [
-      sidebarState,
-      savedClassId,
-      fetchedClasses,
-      fetchedStudents,
-      fetchedDeletedStudents,
-      fetchedDeletedClasses,
-      fetchedAttendance,
-      fetchedDailyNotes,
-      fetchedAnecdotes,
-      fetchedInstruments,
-      fetchedGrades,
-      fetchedRecoveryGrades,
-      fetchedFundamental,
-      fetchedCompetencies,
-      fetchedProfile,
-      fetchedJournal,
-      fetchedResources,
-      fetchedEvents,
-      fetchedLessonPlans
-    ] = await Promise.all([
-      api.getIsSidebarCollapsed(),
-      api.getLastSelectedClassId(),
-      api.getClasses(),
-      api.getStudents(),
-      api.getDeletedStudents(),
-      api.getDeletedClasses(),
-      api.getAttendance(),
-      api.getDailyNotes(),
-      api.getAnecdotes(),
-      api.getInstruments(),
-      api.getGrades(),
-      api.getRecoveryGrades(),
-      api.getFundamentalCompetencies(),
-      api.getCompetencies(),
-      api.getTeacherProfile(),
-      api.getJournalEntries(),
-      api.getResources(),
-      api.getCustomEvents(),
-      api.getLessonPlans()
-    ]);
-
-    setIsSidebarCollapsed(sidebarState);
-    setClasses(fetchedClasses);
-    setStudents(fetchedStudents);
-    setDeletedStudents(fetchedDeletedStudents);
-    setDeletedClasses(fetchedDeletedClasses);
-    setAttendance(fetchedAttendance);
-    setDailyNotes(fetchedDailyNotes);
-    setAnecdotes(fetchedAnecdotes);
-    setInstruments(fetchedInstruments);
-    setGrades(fetchedGrades);
-    setRecoveryGrades(fetchedRecoveryGrades);
-    setFundamentalCompetencies(fetchedFundamental);
-    setCompetencies(fetchedCompetencies);
-    setTeacherProfile(fetchedProfile);
-    setJournalEntries(fetchedJournal);
-    setResources(fetchedResources);
-    setCustomEvents(fetchedEvents);
-    setLessonPlans(fetchedLessonPlans);
-
-    if (savedClassId && fetchedClasses.some(c => c.id === savedClassId)) {
-      setSelectedClassId(savedClassId);
-    } else if (fetchedClasses.length > 0) {
-      setSelectedClassId(fetchedClasses[0].id);
-    }
-
-    // Check if seeding is needed for Demo users
-    if (authService.isDemoMode() && fetchedClasses.length === 0) {
-      await api.seedDemoData();
-      await loadAppData(); // Reload with new data
-    }
-  };
+  // --- Data Subscription Logic ---
 
   useEffect(() => {
-    const unsubscribe = authService.onAuthStateChange(async (currentUser) => {
+    const unsubscribeAuth = authService.onAuthStateChange((currentUser) => {
       setUser(currentUser);
       setLoadingAuth(false);
-
-      if (currentUser) {
-        await loadAppData();
-      }
     });
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      // Clear data on logout
+      setClasses([]);
+      setStudents([]);
+      setDeletedStudents([]);
+      setDeletedClasses([]);
+      setAttendance([]);
+      setDailyNotes([]);
+      setAnecdotes([]);
+      setInstruments([]);
+      setGrades([]);
+      setRecoveryGrades([]);
+      setCompetencies([]);
+      setJournalEntries([]);
+      setResources([]);
+      setCustomEvents([]);
+      setLessonPlans([]);
+      setTeacherProfile(null);
+      return;
+    }
+
+    // One-time initialization for static/preference data
+    const initializeData = async () => {
+      const sidebarState = await api.getIsSidebarCollapsed();
+      const initialFundamental = await api.getFundamentalCompetencies();
+      setIsSidebarCollapsed(sidebarState);
+      setFundamentalCompetencies(initialFundamental);
+
+      // Seed demo data if needed
+      if (authService.isDemoMode()) {
+        const currentClasses = await api.getClasses();
+        if (currentClasses.length === 0) await api.seedDemoData();
+      }
+    };
+    initializeData();
+
+    // Setup Real-time Subscriptions
+    const savedClassId = localStorage.getItem('teacherkit-lastSelectedClassId');
+
+    const unsubscribers = [
+      api.onClassesChange(fetchedClasses => {
+        setClasses(fetchedClasses);
+        if (savedClassId && fetchedClasses.some(c => c.id === savedClassId)) {
+          setSelectedClassId(savedClassId);
+        } else if (fetchedClasses.length > 0 && !selectedClassId) {
+          setSelectedClassId(fetchedClasses[0].id);
+        }
+      }),
+      api.onStudentsChange(setStudents),
+      api.onDeletedStudentsChange(setDeletedStudents),
+      api.onDeletedClassesChange(setDeletedClasses),
+      api.onAttendanceChange(setAttendance),
+      api.onDailyNotesChange(setDailyNotes),
+      api.onAnecdotesChange(setAnecdotes),
+      api.onInstrumentsChange(setInstruments),
+      api.onGradesChange(setGrades),
+      api.onRecoveryGradesChange(setRecoveryGrades),
+      api.onCompetenciesChange(setCompetencies),
+      api.onJournalChange(setJournalEntries),
+      api.onResourcesChange(setResources),
+      api.onEventsChange(setCustomEvents),
+      api.onLessonPlansChange(setLessonPlans),
+      api.onTeacherProfileChange(setTeacherProfile)
+    ];
+
+    return () => {
+      unsubscribers.forEach(unsub => {
+        if (typeof unsub === 'function') unsub();
+      });
+    };
+  }, [user]);
 
   // --- Effects ---
 
@@ -807,10 +802,10 @@ function App() {
       <MoveStudentBulkModal isOpen={isMoveStudentBulkModalOpen} onClose={() => { setIsMoveStudentBulkModalOpen(false); setStudentsToMoveBulk([]); }} students={studentsToMoveBulk} classes={classes} onMoveStudents={handleMoveStudentsBulk} />
       <EditStudentBulkModal isOpen={isEditStudentBulkModalOpen} onClose={() => { setIsEditStudentBulkModalOpen(false); setStudentsToEditBulk([]); }} students={studentsToEditBulk} classes={classes} onSave={handleEditStudentsBulk} />
 
-      <StudentImportModal isOpen={isStudentImportModalOpen} onClose={() => setIsStudentImportModalOpen(false)} onImport={handleImportStudents} classes={classes} aiFeatures={aiFeatures} />
-      <AddAnecdoteModal isOpen={isAddAnecdoteModalOpen} onClose={() => setIsAddAnecdoteModalOpen(false)} students={students} onAddAnecdote={(a) => handleAddAnecdote(a)} />
+      <StudentImportModal isOpen={isStudentImportModalOpen} onClose={() => setIsStudentImportModalOpen(false)} onImport={handleImportStudents} classes={classes} aiFeatures={aiFeatures} selectedClassId={selectedClassId} />
+      <AddAnecdoteModal isOpen={isAddAnecdoteModalOpen} onClose={() => setIsAddAnecdoteModalOpen(false)} students={students} onAddAnecdote={(a) => handleAddAnecdote(a)} selectedClassId={selectedClassId} />
 
-      <AddInstrumentModal isOpen={isAddInstrumentModalOpen} onClose={() => setIsAddInstrumentModalOpen(false)} onAddInstrument={handleAddInstrument} classes={classes} competencies={competencies} aiFeatures={aiFeatures} />
+      <AddInstrumentModal isOpen={isAddInstrumentModalOpen} onClose={() => setIsAddInstrumentModalOpen(false)} onAddInstrument={handleAddInstrument} classes={classes} competencies={competencies} aiFeatures={aiFeatures} selectedClassId={selectedClassId} />
       <EditInstrumentModal isOpen={isEditInstrumentModalOpen} onClose={() => { setIsEditInstrumentModalOpen(false); setInstrumentToEdit(null); }} onEditInstrument={handleEditInstrument} instrument={instrumentToEdit} classes={classes} competencies={competencies} aiFeatures={aiFeatures} />
       <InstrumentDetailModal isOpen={isInstrumentDetailModalOpen} onClose={() => { setIsInstrumentDetailModalOpen(false); setInstrumentToView(null); }} instrument={instrumentToView} competencies={competencies} onExpressGradingClick={(inst) => { setIsInstrumentDetailModalOpen(false); setGradingInstrument(inst); setIsExpressGradingModalOpen(true); }} onEditInstrumentClick={(inst) => { setIsInstrumentDetailModalOpen(false); setInstrumentToEdit(inst); setIsEditInstrumentModalOpen(true); }} />
       <ExpressGradingModal isOpen={isExpressGradingModalOpen} onClose={() => { setIsExpressGradingModalOpen(false); setGradingInstrument(null); setExpressGradingStudentId(null); }} instrument={gradingInstrument} students={students} grades={grades} onSaveGrades={handleSaveExpressGrades} initialFocusStudentId={expressGradingStudentId} />

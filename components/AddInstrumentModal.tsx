@@ -13,10 +13,11 @@ interface AddInstrumentModalProps {
   classes: Class[];
   competencies: Competency[];
   aiFeatures: AIFeatures;
+  selectedClassId?: string | null;
 }
 
-export const AddInstrumentModal: React.FC<AddInstrumentModalProps> = ({ isOpen, onClose, onAddInstrument, classes, competencies, aiFeatures }) => {
-  const [classId, setClassId] = useState<string>(classes[0]?.id || '');
+export const AddInstrumentModal: React.FC<AddInstrumentModalProps> = ({ isOpen, onClose, onAddInstrument, classes, competencies, aiFeatures, selectedClassId }) => {
+  const [classId, setClassId] = useState<string>(selectedClassId || classes[0]?.id || '');
   const [name, setName] = useState('');
   const [type, setType] = useState<InstrumentType>('Prueba Corta');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -32,9 +33,10 @@ export const AddInstrumentModal: React.FC<AddInstrumentModalProps> = ({ isOpen, 
   const showCriteriaSection = ['Lista de Cotejo', 'Escala Estimativa', 'Rúbrica'].includes(type);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      setClassId(selectedClassId || classes[0]?.id || '');
+    } else {
       // Reset state on close
-      setClassId(classes[0]?.id || '');
       setName('');
       setType('Prueba Corta');
       setDate(new Date().toISOString().split('T')[0]);
@@ -45,7 +47,7 @@ export const AddInstrumentModal: React.FC<AddInstrumentModalProps> = ({ isOpen, 
       setActividades('');
       setCriteria([]);
     }
-  }, [isOpen, classes]);
+  }, [isOpen, classes, selectedClassId]);
 
   useEffect(() => setSelectedCompetencyIds([]), [classId]);
 

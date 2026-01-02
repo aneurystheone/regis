@@ -10,15 +10,21 @@ interface AddAnecdoteModalProps {
   onClose: () => void;
   students: Student[];
   onAddAnecdote: (anecdote: Omit<AnecdotalRecord, 'id' | 'studentId'> & { studentIds: string[] }) => void;
+  selectedClassId?: string | null;
 }
 
-export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onClose, students, onAddAnecdote }) => {
+export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onClose, students, onAddAnecdote, selectedClassId }) => {
+  const filteredStudents = useMemo(() => {
+    if (!selectedClassId) return students;
+    return students.filter(s => s.classId === selectedClassId);
+  }, [students, selectedClassId]);
+
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [note, setNote] = useState('');
   const [category, setCategory] = useState<AnecdotalRecord['category']>('Académico');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  
+
   // Media state
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -40,16 +46,16 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
   }, [isOpen]);
 
   const selectedStudents = useMemo(() => {
-    return students.filter(s => selectedStudentIds.includes(s.id));
-  }, [students, selectedStudentIds]);
+    return filteredStudents.filter(s => selectedStudentIds.includes(s.id));
+  }, [filteredStudents, selectedStudentIds]);
 
   const availableStudents = useMemo(() => {
     const lowerCaseQuery = searchQuery.toLowerCase();
-    return students.filter(s => 
-        !selectedStudentIds.includes(s.id) && 
-        (searchQuery ? s.name.toLowerCase().includes(lowerCaseQuery) : true)
+    return filteredStudents.filter(s =>
+      !selectedStudentIds.includes(s.id) &&
+      (searchQuery ? s.name.toLowerCase().includes(lowerCaseQuery) : true)
     );
-  }, [students, searchQuery, selectedStudentIds]);
+  }, [filteredStudents, searchQuery, selectedStudentIds]);
 
   const handleSelectStudent = (studentId: string) => {
     setSelectedStudentIds(prev => [...prev, studentId]);
@@ -59,19 +65,19 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
   const handleRemoveStudent = (studentId: string) => {
     setSelectedStudentIds(prev => prev.filter(id => id !== studentId));
   };
-  
+
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0];
-        setPhotoFile(file);
-        const reader = new FileReader();
-        reader.onloadend = () => setPhotoPreview(reader.result as string);
-        reader.readAsDataURL(file);
-      }
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setPhotoPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAudioComplete = (audioDataUrl: string) => {
-      setAudioPreview(audioDataUrl);
+    setAudioPreview(audioDataUrl);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,37 +85,37 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
     if (note.trim() && selectedStudentIds.length > 0) {
       setIsUploading(true);
       try {
-          let photoUrl = undefined;
-          let audioUrl = undefined;
+        let photoUrl = undefined;
+        let audioUrl = undefined;
 
-          // Upload Photo
-          if (photoFile) {
-              const path = `evidence/photos/${Date.now()}_${photoFile.name}`;
-              photoUrl = await uploadFile(photoFile, path);
-          }
+        // Upload Photo
+        if (photoFile) {
+          const path = `evidence/photos/${Date.now()}_${photoFile.name}`;
+          photoUrl = await uploadFile(photoFile, path);
+        }
 
-          // Upload Audio
-          if (audioPreview) {
-              // AudioRecorder returns DataURL, convert to Blob
-              const audioBlob = dataURLToBlob(audioPreview);
-              const path = `evidence/audio/${Date.now()}.webm`;
-              audioUrl = await uploadFile(audioBlob, path);
-          }
+        // Upload Audio
+        if (audioPreview) {
+          // AudioRecorder returns DataURL, convert to Blob
+          const audioBlob = dataURLToBlob(audioPreview);
+          const path = `evidence/audio/${Date.now()}.webm`;
+          audioUrl = await uploadFile(audioBlob, path);
+        }
 
-          onAddAnecdote({
-            studentIds: selectedStudentIds,
-            date: new Date().toISOString(),
-            note,
-            category,
-            photoUrl: photoUrl,
-            audioUrl: audioUrl,
-          });
-          onClose();
+        onAddAnecdote({
+          studentIds: selectedStudentIds,
+          date: new Date().toISOString(),
+          note,
+          category,
+          photoUrl: photoUrl,
+          audioUrl: audioUrl,
+        });
+        onClose();
       } catch (error) {
-          console.error("Upload failed:", error);
-          alert("Error al subir archivos. Por favor intente de nuevo.");
+        console.error("Upload failed:", error);
+        alert("Error al subir archivos. Por favor intente de nuevo.");
       } finally {
-          setIsUploading(false);
+        setIsUploading(false);
       }
     }
   };
@@ -131,36 +137,36 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
           <div className="relative">
             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Estudiantes</label>
             <div className="flex flex-wrap items-center gap-2 p-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md">
-                {selectedStudents.map(student => (
-                    <span key={student.id} className="flex items-center gap-1.5 bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 text-sm font-medium px-2 py-1 rounded-full">
-                        {student.name}
-                        <button type="button" onClick={() => handleRemoveStudent(student.id)} className="text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-100">
-                            <XIcon className="w-3 h-3"/>
-                        </button>
-                    </span>
-                ))}
-                <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onFocus={() => setIsSearchFocused(true)}
-                    onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
-                    placeholder="Buscar y añadir estudiantes..."
-                    className="flex-grow bg-transparent focus:outline-none text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 py-1"
-                />
+              {selectedStudents.map(student => (
+                <span key={student.id} className="flex items-center gap-1.5 bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 text-sm font-medium px-2 py-1 rounded-full">
+                  {student.name}
+                  <button type="button" onClick={() => handleRemoveStudent(student.id)} className="text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-100">
+                    <XIcon className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                placeholder="Buscar y añadir estudiantes..."
+                className="flex-grow bg-transparent focus:outline-none text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 py-1"
+              />
             </div>
             {isSearchFocused && availableStudents.length > 0 && (
-                <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                    {availableStudents.slice(0, 10).map(student => ( // Show top 10 results
-                        <li 
-                            key={student.id}
-                            onMouseDown={() => handleSelectStudent(student.id)}
-                            className="px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-                        >
-                            {student.name}
-                        </li>
-                    ))}
-                </ul>
+              <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                {availableStudents.slice(0, 10).map(student => ( // Show top 10 results
+                  <li
+                    key={student.id}
+                    onMouseDown={() => handleSelectStudent(student.id)}
+                    className="px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+                  >
+                    {student.name}
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
           <div>
@@ -173,28 +179,28 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
               rows={3} required
             />
           </div>
-           {photoPreview && (
-                <div className="relative group w-fit">
-                    <img src={photoPreview} alt="Evidencia" className="rounded-lg max-h-32 h-auto border border-slate-200 dark:border-slate-600" />
-                    <button type="button" onClick={() => { setPhotoPreview(null); setPhotoFile(null); }} className="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-70 transition-all">&times;</button>
-                </div>
-            )}
-             {audioPreview && (
-                <div className="relative group w-fit">
-                    <audio src={audioPreview} controls />
-                    <button type="button" onClick={() => setAudioPreview(null)} className="absolute -top-2 -right-2 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-70 transition-all">&times;</button>
-                </div>
-            )}
+          {photoPreview && (
+            <div className="relative group w-fit">
+              <img src={photoPreview} alt="Evidencia" className="rounded-lg max-h-32 h-auto border border-slate-200 dark:border-slate-600" />
+              <button type="button" onClick={() => { setPhotoPreview(null); setPhotoFile(null); }} className="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-70 transition-all">&times;</button>
+            </div>
+          )}
+          {audioPreview && (
+            <div className="relative group w-fit">
+              <audio src={audioPreview} controls />
+              <button type="button" onClick={() => setAudioPreview(null)} className="absolute -top-2 -right-2 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-70 transition-all">&times;</button>
+            </div>
+          )}
           <div className="flex justify-between items-center gap-4">
             <div className="flex items-center gap-2">
-                <select value={category} onChange={(e) => setCategory(e.target.value as AnecdotalRecord['category'])}
+              <select value={category} onChange={(e) => setCategory(e.target.value as AnecdotalRecord['category'])}
                 className="px-3 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-200 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                 <option>Académico</option><option>Comportamiento</option><option>Social</option><option>Otro</option>
-                </select>
-                <label htmlFor="photo-upload-modal" className="cursor-pointer p-2 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-200 dark:hover:bg-slate-500 transition-colors">
-                    <CameraIcon /><input id="photo-upload-modal" type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
-                </label>
-                <AudioRecorder onRecordingComplete={handleAudioComplete} />
+              </select>
+              <label htmlFor="photo-upload-modal" className="cursor-pointer p-2 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-200 dark:hover:bg-slate-500 transition-colors">
+                <CameraIcon /><input id="photo-upload-modal" type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+              </label>
+              <AudioRecorder onRecordingComplete={handleAudioComplete} />
             </div>
           </div>
           <div className="flex-shrink-0 flex justify-end gap-4 pt-4">

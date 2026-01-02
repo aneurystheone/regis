@@ -10,7 +10,8 @@ import {
     deleteDoc,
     writeBatch,
     query,
-    where
+    where,
+    onSnapshot
 } from "firebase/firestore";
 import type { Class, Student, AttendanceRecord, AnecdotalRecord, Competency, EvaluationInstrument, Grade, FundamentalCompetency, TeacherProfileData, JournalEntry, Resource, User, CustomEvent, RecoveryGrade, FontSize, DailyNote, CurriculumData, LessonPlan, AIFeatures } from '../types';
 
@@ -110,6 +111,22 @@ const fetchCollection = async <T extends { id: string }>(collectionName: string)
     }
 };
 
+const subscribeToCollection = <T extends { id: string }>(collectionName: string, onData: (data: T[]) => void) => {
+    const uid = getCurrentUserId();
+    if (!uid || isVirtualMode()) return () => { };
+
+    const q = query(collection(db, collectionName), where("userId", "==", uid));
+    return onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ ...doc.data() as T, id: doc.id }));
+        setLocal(collectionName, data);
+        onData(data);
+        syncEvents.notify(false);
+    }, (error) => {
+        if (error.code === 'permission-denied') syncEvents.notify(true);
+        console.error(`Error in ${collectionName} subscription:`, error);
+    });
+};
+
 const fetchBulkList = async <T>(listName: string, defaultData: T[]): Promise<T[]> => {
     const uid = getCurrentUserId();
     if (!uid) return defaultData;
@@ -129,6 +146,24 @@ const fetchBulkList = async <T>(listName: string, defaultData: T[]): Promise<T[]
         if (error.code === 'permission-denied') syncEvents.notify(true);
         return getLocal<T>(listName);
     }
+};
+
+const subscribeToBulkList = <T>(listName: string, onData: (data: T[]) => void) => {
+    const uid = getCurrentUserId();
+    if (!uid || isVirtualMode()) return () => { };
+
+    const docName = `${listName}_${uid}`;
+    return onSnapshot(doc(db, COLLECTIONS.LISTS, docName), (snapshot) => {
+        if (snapshot.exists()) {
+            const data = (snapshot.data().items as T[]) || [];
+            setLocal(listName, data);
+            onData(data);
+            syncEvents.notify(false);
+        }
+    }, (error) => {
+        if (error.code === 'permission-denied') syncEvents.notify(true);
+        console.error(`Error in ${listName} bulk subscription:`, error);
+    });
 };
 
 const saveBulkList = async <T>(listName: string, items: T[]): Promise<void> => {
@@ -625,5 +660,29 @@ export const api = {
     },
     async setAIFeatures(features: AIFeatures): Promise<void> {
         localStorage.setItem('teacherkit-aiFeatures', JSON.stringify(features));
+    },
+
+    // Subscriptions
+    onClassesChange(callback: (classes: Class[]) => void) { return subscribeToCollection<Class>(COLLECTIONS.CLASSES, callback); },
+    onStudentsChange(callback: (students: Student[]) => void) { return subscribeToCollection<Student>(COLLECTIONS.STUDENTS, callback); },
+    onDeletedStudentsChange(callback: (students: Student[]) => void) { return subscribeToCollection<Student>(COLLECTIONS.DELETED_STUDENTS, callback); },
+    onDeletedClassesChange(callback: (classes: Class[]) => void) { return subscribeToCollection<Class>(COLLECTIONS.DELETED_CLASSES, callback); },
+    onAttendanceChange(callback: (attendance: AttendanceRecord[]) => void) { return subscribeToBulkList<AttendanceRecord>('attendance', callback); },
+    onDailyNotesChange(callback: (notes: DailyNote[]) => void) { return subscribeToBulkList<DailyNote>('daily_notes', callback); },
+    onAnecdotesChange(callback: (anecdotes: AnecdotalRecord[]) => void) { return subscribeToCollection<AnecdotalRecord>(COLLECTIONS.ANECDOTES, callback); },
+    onInstrumentsChange(callback: (instruments: EvaluationInstrument[]) => void) { return subscribeToCollection<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS, callback); },
+    onGradesChange(callback: (grades: Grade[]) => void) { return subscribeToBulkList<Grade>('grades', callback); },
+    onRecoveryGradesChange(callback: (grades: RecoveryGrade[]) => void) { return subscribeToBulkList<RecoveryGrade>('recovery_grades', callback); },
+    onCompetenciesChange(callback: (competencies: Competency[]) => void) { return subscribeToCollection<Competency>(COLLECTIONS.USER_COMPETENCIES, callback); },
+    onJournalChange(callback: (entries: JournalEntry[]) => void) { return subscribeToCollection<JournalEntry>(COLLECTIONS.JOURNAL, callback); },
+    onResourcesChange(callback: (resources: Resource[]) => void) { return subscribeToCollection<Resource>(COLLECTIONS.RESOURCES, callback); },
+    onEventsChange(callback: (events: CustomEvent[]) => void) { return subscribeToCollection<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS, callback); },
+    onLessonPlansChange(callback: (plans: LessonPlan[]) => void) { return subscribeToCollection<LessonPlan>(COLLECTIONS.LESSON_PLANS, callback); },
+    onTeacherProfileChange(callback: (profile: TeacherProfileData) => void) {
+        const uid = getCurrentUserId();
+        if (!uid || isVirtualMode()) return () => { };
+        return onSnapshot(doc(db, COLLECTIONS.TEACHER_PROFILE, uid), (snapshot) => {
+            if (snapshot.exists()) callback(snapshot.data() as TeacherProfileData);
+        });
     }
 };

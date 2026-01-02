@@ -1,90 +1,26 @@
 <!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#1F3A5F" />
-    <meta name="description" content="Regis - Gestión Docente Inteligente" />
-    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
-    <title>Regis - Gestión Docente Inteligente</title>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              brand: {
-                primary: '#1F3A5F',    // Azul profundo
-                secondary: '#4DA3FF',  // Azul claro
-                accent: '#3CCF91',     // Verde IA
-                bg: '#F5F7FA',         // Fondo claro
-                text: '#2E2E2E',       // Texto principal
-              }
-            },
-            fontFamily: {
-              sans: ['Lexend', 'sans-serif'],
-            },
-            borderRadius: {
-              'xl': '12px',
-              '2xl': '16px',
-              '3xl': '24px',
-            }
-          },
-        },
-      }
-    </script>
-    <style>
-      body {
-        background-color: #F5F7FA;
-      }
-      html.dark body {
-        background-color: #0f172a;
-      }
-      ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-      html.dark ::-webkit-scrollbar-thumb { background: #334155; }
-      
-      .glass-card {
-        background: rgba(255, 255, 255, 0.8);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-      }
-      
-      @keyframes float {
-        0% { transform: translateY(0px); }
-        50% { transform: translateY(-5px); }
-        100% { transform: translateY(0px); }
-      }
-      .animate-float { animation: float 3s ease-in-out infinite; }
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-    <script type="importmap">
-    {
-      "imports": {
-        "react/": "https://aistudiocdn.com/react@^19.2.0/",
-        "react": "https://aistudiocdn.com/react@^19.2.0",
-        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0",
-        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
-        "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
-        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
-        "firebase/storage": "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js",
-        "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
-      }
-    }
-    </script>
-  <link rel="stylesheet" href="/index.css">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1F3A5F" />
+  <meta name="description" content="Regis - Gestión Docente Inteligente" />
+  <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+  <title>Regis - Gestión Docente Inteligente</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&display=swap" rel="stylesheet">
 </head>
-  <body class="text-brand-text">
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+
+<body class="text-brand-text">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>
+</body>
+
 </html>

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Student, AnecdotalRecord, Class, AttendanceRecord, AIFeatures } from '../types';
+import { Avatar } from './Avatar';
 // Fixed: Added DocumentTextIcon to the import list from icons
 import { PlusIcon, SparklesIcon, CameraIcon, TableCellsIcon, MicrophoneIcon, XIcon, UserCircleIcon, HeartIcon, UserGroupIcon, WifiIcon, PencilIcon, CheckIcon, DocumentTextIcon } from './icons';
 import { generateStudentSummary, transcribeAndAnalyzeAnecdote } from '../services/geminiService';
@@ -324,7 +325,12 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, anecdot
       <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700">
         <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-8">
           <div className="relative group">
-            <img src={student.avatar} alt={student.name} className="w-32 h-32 rounded-full object-cover border-4 border-indigo-100 dark:border-indigo-900 shadow-inner" />
+            <Avatar
+              name={student.name}
+              src={student.avatar}
+              size="xl"
+              className="border-4 border-indigo-100 dark:border-indigo-900 shadow-inner"
+            />
             {isEditing && (
               <label htmlFor="avatar-upload" className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
                 <CameraIcon className="w-8 h-8 text-white" />

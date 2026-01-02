@@ -10,6 +10,7 @@ interface StudentImportModalProps {
   onImport: (students: Omit<Student, 'id' | 'classId' | 'avatar'>[], classId: string) => void;
   classes: Class[];
   aiFeatures: AIFeatures;
+  selectedClassId?: string | null;
 }
 
 type ParsedStudent = Omit<Student, 'id' | 'classId' | 'avatar'>;
@@ -21,8 +22,8 @@ type ParseResult = {
 const REQUIRED_HEADERS = ['name'];
 const OPTIONAL_HEADERS = ['gender', 'email', 'phone', 'birthdate'];
 
-export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, onClose, onImport, classes, aiFeatures }) => {
-  const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || '');
+export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, onClose, onImport, classes, aiFeatures, selectedClassId }) => {
+  const [activeClassId, setActiveClassId] = useState<string>(selectedClassId || classes[0]?.id || '');
   const [file, setFile] = useState<File | null>(null);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState<string>('');
@@ -33,7 +34,7 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
 
   useEffect(() => {
     if (isOpen) {
-      setSelectedClassId(classes[0]?.id || '');
+      setActiveClassId(selectedClassId || classes[0]?.id || '');
       setFile(null);
       setParseResult(null);
       setError('');
@@ -41,7 +42,7 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
       setIsAnalyzing(false);
       setImagePreviewUrl(null);
     }
-  }, [isOpen, classes]);
+  }, [isOpen, classes, selectedClassId]);
 
   const handleCsvFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -202,8 +203,8 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
   };
 
   const handleImportClick = () => {
-    if (parseResult && parseResult.valid.length > 0 && selectedClassId) {
-      onImport(parseResult.valid, selectedClassId);
+    if (parseResult && parseResult.valid.length > 0 && activeClassId) {
+      onImport(parseResult.valid, activeClassId);
     }
   };
 
@@ -260,7 +261,7 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             <div>
               <label htmlFor="import-class-select" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Importar a la Clase</label>
-              <select id="import-class-select" value={selectedClassId} onChange={e => setSelectedClassId(e.target.value)} required
+              <select id="import-class-select" value={activeClassId} onChange={e => setActiveClassId(e.target.value)} required
                 className="block w-full text-base border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                 {classes.map(c => <option key={c.id} value={c.id}>{c.name} - {c.grade} {c.section}</option>)}
               </select>

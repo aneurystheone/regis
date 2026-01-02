@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import type { Class, Student, EvaluationInstrument, AttendanceRecord, Grade, AIFeatures } from '../types';
+import { Avatar } from './Avatar';
 import {
   ClipboardCheckIcon,
   UserGroupIcon,
@@ -9,7 +10,8 @@ import {
   ClockIcon,
   SparklesIcon,
   PencilSquareIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  StarIcon
 } from './icons';
 
 interface DashboardProps {
@@ -187,7 +189,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
       </div>
 
       {/* STATS CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={<UserGroupIcon className="w-6 h-6" />}
           label="Estudiantes"
@@ -207,7 +209,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
           onClick={() => onNavigate('ATTENDANCE')}
         />
         <StatCard
-          icon={<SparklesIcon className="w-6 h-6" />}
+          icon={<StarIcon className="w-6 h-6" />}
           label="Calificación"
           subtext="media"
           value={averageGrade > 0 ? averageGrade : '-'}
@@ -235,7 +237,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
         />
         <ActionButton
           label="Calificar"
-          icon={<PencilSquareIcon className="w-5 h-5" />}
+          icon={<StarIcon className="w-5 h-5" />}
           onClick={() => onNavigate('GRADEBOOK_INSTRUMENTS')}
         />
         {aiFeatures.lessonPlanning && (
@@ -321,9 +323,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
 
             <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100 dark:border-slate-600 relative z-10 mt-auto">
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-indigo-900 border-2 border-white warm-gray-50 flex-shrink-0">
-                  <img src="https://ui-avatars.com/api/?name=Vicente&background=3CCF91&color=1F3A5F" alt="V" />
-                </div>
+                <Avatar
+                  name="Vicente"
+                  size="sm"
+                  className="w-8 h-8 rounded-full shadow-sm border-2 border-white"
+                />
                 <div className="flex-1">
                   <p className="text-xs font-bold text-slate-800 dark:text-white">Vicente</p>
                   <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-tight mt-1">

@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import type { LessonPlan, Class, LessonActivity, AIFeatures } from '../types';
 import { PlusIcon, PencilIcon, TrashIcon, SparklesIcon, XIcon, CalendarIcon, BookOpenIcon, DownloadIcon } from './icons';
 import { generateLessonPlan } from '../services/geminiService';
+import { jsPDF } from 'jspdf';
 
-declare const jspdf: any;
+// Extend jsPDF type if needed, or use as is
 
 interface LessonPlannerProps {
   classes: Class[];
