@@ -48,7 +48,7 @@ const TabButton: React.FC<{ label: string; icon: React.ReactNode; isActive: bool
             } ${className}`}
     >
         {icon}
-        <span className="hidden sm:inline">{label}</span>
+        <span className={`${isActive ? 'inline' : 'hidden'} sm:inline`}>{label}</span>
     </button>
 );
 
@@ -755,7 +755,7 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
                 {/* Tabs */}
                 <div className="border-b border-slate-200 dark:border-slate-700">
                     <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs">
-                        <TabButton label="Competencias" icon={<AcademicCapIcon className="w-5 h-5" />} isActive={activeTab === 'COMPETENCIES'} onClick={() => setActiveTab('COMPETENCIES')} />
+                        <TabButton label="Competencias" icon={<BoltIcon className="w-5 h-5" />} isActive={activeTab === 'COMPETENCIES'} onClick={() => setActiveTab('COMPETENCIES')} />
                         <TabButton label="Instrumentos" icon={<DocumentTextIcon className="w-5 h-5" />} isActive={activeTab === 'INSTRUMENTS'} onClick={() => setActiveTab('INSTRUMENTS')} />
                         <TabButton label="Calificaciones" icon={<StarIcon className="w-5 h-5" />} isActive={activeTab === 'GRADES'} onClick={() => setActiveTab('GRADES')} />
                     </nav>

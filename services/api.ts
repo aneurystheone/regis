@@ -44,7 +44,8 @@ const COLLECTIONS = {
     RESOURCES: 'resources',
     CUSTOM_EVENTS: 'custom_events',
     LISTS: 'lists',
-    LESSON_PLANS: 'lesson_plans'
+    LESSON_PLANS: 'lesson_plans',
+    APP_CONFIG: 'app_config'
 };
 
 const mockFundamentalCompetencies: FundamentalCompetency[] = [
@@ -649,6 +650,16 @@ export const api = {
     async getLastSelectedClassId(): Promise<string | null> { return localStorage.getItem('teacherkit-lastSelectedClassId'); },
     async setLastSelectedClassId(classId: string): Promise<void> { localStorage.setItem('teacherkit-lastSelectedClassId', classId); },
     async getAIFeatures(): Promise<AIFeatures> {
+        if (!isVirtualMode()) {
+            try {
+                const docSnap = await getDoc(doc(db, COLLECTIONS.APP_CONFIG, 'global_ai_features'));
+                if (docSnap.exists()) {
+                    return docSnap.data().features as AIFeatures;
+                }
+            } catch (error) {
+                console.error("Error fetching AI features:", error);
+            }
+        }
         return JSON.parse(localStorage.getItem('teacherkit-aiFeatures') || JSON.stringify({
             summaryGeneration: false,
             criteriaGeneration: false,
@@ -660,6 +671,21 @@ export const api = {
     },
     async setAIFeatures(features: AIFeatures): Promise<void> {
         localStorage.setItem('teacherkit-aiFeatures', JSON.stringify(features));
+        if (!isVirtualMode()) {
+            try {
+                await setDoc(doc(db, COLLECTIONS.APP_CONFIG, 'global_ai_features'), { features: sanitizeData(features) });
+            } catch (error) {
+                console.error("Error saving AI features:", error);
+            }
+        }
+    },
+    onAIFeaturesChange(callback: (features: AIFeatures) => void) {
+        if (isVirtualMode()) return () => { };
+        return onSnapshot(doc(db, COLLECTIONS.APP_CONFIG, 'global_ai_features'), (snapshot) => {
+            if (snapshot.exists()) {
+                callback(snapshot.data().features as AIFeatures);
+            }
+        });
     },
 
     // Subscriptions

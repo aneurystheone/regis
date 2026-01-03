@@ -100,8 +100,11 @@ function App() {
   });
 
   useEffect(() => {
-    window.localStorage.setItem('teacherkit-aiFeatures', JSON.stringify(aiFeatures));
-  }, [aiFeatures]);
+    const unsub = api.onAIFeaturesChange((features) => {
+      setAiFeatures(features);
+    });
+    return unsub;
+  }, []);
 
   // Data State
   const [classes, setClasses] = useState<Class[]>([]);

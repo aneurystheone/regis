@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { Student, AnecdotalRecord, Class, AttendanceRecord, AIFeatures } from '../types';
 import { Avatar } from './Avatar';
 // Fixed: Added DocumentTextIcon to the import list from icons
-import { PlusIcon, SparklesIcon, CameraIcon, TableCellsIcon, MicrophoneIcon, XIcon, UserCircleIcon, HeartIcon, UserGroupIcon, WifiIcon, PencilIcon, CheckIcon, DocumentTextIcon } from './icons';
+import { PlusIcon, SparklesIcon, CameraIcon, TableCellsIcon, MicrophoneIcon, XIcon, UserCircleIcon, HeartIcon, UserGroupIcon, WifiIcon, PencilIcon, CheckIcon, DocumentTextIcon, StarIcon } from './icons';
 import { generateStudentSummary, transcribeAndAnalyzeAnecdote } from '../services/geminiService';
 import { AudioRecorder } from './AudioRecorder';
 import { AttendanceStatus } from '../types';
@@ -312,7 +312,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, anecdot
           ) : (
             <>
               <button onClick={() => onViewGrades(student.id)} className="flex-1 md:flex-none flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold py-2 px-4 rounded-lg hover:bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-200 dark:hover:bg-indigo-800/60 transition-colors shadow-sm">
-                <TableCellsIcon className="w-5 h-5 mr-2" /> Calificaciones
+                <StarIcon className="w-5 h-5 mr-2" /> Calificaciones
               </button>
               <button onClick={enterEditMode} className="flex-1 md:flex-none flex items-center justify-center bg-slate-800 text-white font-bold py-2 px-6 rounded-lg hover:bg-slate-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 transition-colors shadow-md">
                 <PencilIcon className="w-5 h-5 mr-2" /> Editar Perfil

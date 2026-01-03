@@ -11,7 +11,8 @@ import {
   SparklesIcon,
   PencilSquareIcon,
   ChevronRightIcon,
-  StarIcon
+  StarIcon,
+  TrendingUpIcon
 } from './icons';
 
 interface DashboardProps {
@@ -209,7 +210,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
           onClick={() => onNavigate('ATTENDANCE')}
         />
         <StatCard
-          icon={<StarIcon className="w-6 h-6" />}
+          icon={<TrendingUpIcon className="w-6 h-6" />}
           label="Calificación"
           subtext="media"
           value={averageGrade > 0 ? averageGrade : '-'}
