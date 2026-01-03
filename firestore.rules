@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return request.auth.token.admin == true;
+    }
+
+    // --- User Data Isolation Rules ---
+    // Rules for collections where documents have a 'userId' field
+    // (Classes, Students, Grades, etc.)
+    
+    // Generic Match for standard collections
+    match /{collectionName}/{docId} {
+      // Check if the document belongs to the user
+      allow read, update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || resource == null);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Specific Rules for detailed control or exceptions
+    
+    // Users Collection (Private Profile)
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // App Configuration (Global AI Features)
+    match /app_config/global_ai_features {
+      // Everyone can read features (to respect settings)
+      allow read: if true; 
+      // Only admins can change them
+      allow write: if isSignedIn() && isAdmin();
+    }
+  }
+}

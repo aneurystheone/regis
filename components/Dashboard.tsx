@@ -8,10 +8,10 @@ import {
   ExclamationIcon,
   CheckIcon,
   ClockIcon,
+  StarIcon,
   SparklesIcon,
   PencilSquareIcon,
   ChevronRightIcon,
-  StarIcon,
   TrendingUpIcon
 } from './icons';
 
@@ -201,7 +201,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
           onClick={() => onNavigate('STUDENTS')}
         />
         <StatCard
-          icon={<TableCellsIcon className="w-6 h-6" />}
+          icon={<ClipboardCheckIcon className="w-6 h-6" />}
           label="Promedio"
           subtext="mensual"
           value={`${attendanceAvg}%`}
@@ -210,7 +210,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
           onClick={() => onNavigate('ATTENDANCE')}
         />
         <StatCard
-          icon={<TrendingUpIcon className="w-6 h-6" />}
+          icon={<StarIcon className="w-6 h-6" />}
           label="Calificación"
           subtext="media"
           value={averageGrade > 0 ? averageGrade : '-'}

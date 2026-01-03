@@ -19,7 +19,7 @@ export const generateStudentSummary = async (student: Student, anecdotes: Anecdo
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: prompt,
     });
     return response.text || "Hola, soy Vicente. No pude procesar el resumen en este momento.";
@@ -42,7 +42,7 @@ export const generateEvaluationCriteria = async (competencies: Competency[], con
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash",
+      model: "gemini-2.0-flash-exp",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -73,7 +73,7 @@ export const transcribeAndAnalyzeAnecdote = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash",
+      model: "gemini-2.0-flash-exp",
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType, data: audioBase64 } }] },
       config: {
         responseMimeType: "application/json",
@@ -112,7 +112,7 @@ export const generateLessonPlan = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash',
+      model: 'gemini-2.0-flash-exp',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -156,7 +156,7 @@ export const extractStudentsFromImage = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash",
+      model: "gemini-2.0-flash-exp",
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }] },
       config: {
         responseMimeType: "application/json",

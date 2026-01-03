@@ -11,9 +11,11 @@ import {
     writeBatch,
     query,
     where,
-    onSnapshot
+    onSnapshot,
+    addDoc
 } from "firebase/firestore";
-import type { Class, Student, AttendanceRecord, AnecdotalRecord, Competency, EvaluationInstrument, Grade, FundamentalCompetency, TeacherProfileData, JournalEntry, Resource, User, CustomEvent, RecoveryGrade, FontSize, DailyNote, CurriculumData, LessonPlan, AIFeatures } from '../types';
+import type { Class, Student, AttendanceRecord, AnecdotalRecord, Competency, EvaluationInstrument, Grade, FundamentalCompetency, TeacherProfileData, JournalEntry, Resource, User, CustomEvent, RecoveryGrade, FontSize, DailyNote, CurriculumData, LessonPlan, AIFeatures, BaseEntity } from '../types';
+import { CURRENT_SCHEMA_VERSION } from '../types';
 
 let curriculumCache: CurriculumData | null = null;
 
@@ -91,6 +93,45 @@ function sanitizeData(data: any): any {
     return data;
 }
 
+// Migration Logic
+function migrateDocument<T>(data: any, collectionName: string): T {
+    if (!data) return data;
+
+    // Check if migration is needed
+    const docVersion = data.schemaVersion || 0;
+
+    if (docVersion >= CURRENT_SCHEMA_VERSION) {
+        return data as T;
+    }
+
+    console.log(`Migrating document in ${collectionName} from v${docVersion} to v${CURRENT_SCHEMA_VERSION}`);
+
+    // --- MIGRATION STEPS DEFINITION ---
+    // This is where we will add case statements for future versions.
+    // Example:
+    // if (docVersion < 2 && collectionName === COLLECTIONS.STUDENTS) {
+    //    data = { ...data, newField: 'default' };
+    // }
+
+    // Always update the version in the returned object (in-memory only)
+    // The "Repair" happens when the user saves this object back to Firestore.
+    return { ...data, schemaVersion: CURRENT_SCHEMA_VERSION } as T;
+}
+
+const fetchDocument = async <T extends { id: string }>(collectionName: string, docId: string): Promise<T | null> => {
+    try {
+        const docRef = doc(db, collectionName, docId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return migrateDocument<T>({ id: docSnap.id, ...docSnap.data() }, collectionName);
+        }
+        return null;
+    } catch (error) {
+        console.error(`Error fetching document ${docId} from ${collectionName}:`, error);
+        return null;
+    }
+};
+
 const fetchCollection = async <T extends { id: string }>(collectionName: string): Promise<T[]> => {
     const uid = getCurrentUserId();
     if (!uid) return [];
@@ -99,7 +140,7 @@ const fetchCollection = async <T extends { id: string }>(collectionName: string)
     try {
         const q = query(collection(db, collectionName), where("userId", "==", uid));
         const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ ...doc.data() as T, id: doc.id }));
+        const data = snapshot.docs.map(doc => migrateDocument<T>({ id: doc.id, ...doc.data() }, collectionName));
         setLocal(collectionName, data);
         syncEvents.notify(false);
         return data;
@@ -118,7 +159,7 @@ const subscribeToCollection = <T extends { id: string }>(collectionName: string,
 
     const q = query(collection(db, collectionName), where("userId", "==", uid));
     return onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ ...doc.data() as T, id: doc.id }));
+        const data = snapshot.docs.map(doc => migrateDocument<T>({ id: doc.id, ...doc.data() }, collectionName));
         setLocal(collectionName, data);
         onData(data);
         syncEvents.notify(false);
@@ -137,7 +178,8 @@ const fetchBulkList = async <T>(listName: string, defaultData: T[]): Promise<T[]
         const docName = `${listName}_${uid}`;
         const docSnap = await getDoc(doc(db, COLLECTIONS.LISTS, docName));
         if (docSnap.exists()) {
-            const data = (docSnap.data().items as T[]) || [];
+            const rawItems = (docSnap.data().items as T[]) || [];
+            const data = rawItems.map(item => migrateDocument<T>(item, listName));
             setLocal(listName, data);
             syncEvents.notify(false);
             return data;
@@ -156,7 +198,8 @@ const subscribeToBulkList = <T>(listName: string, onData: (data: T[]) => void) =
     const docName = `${listName}_${uid}`;
     return onSnapshot(doc(db, COLLECTIONS.LISTS, docName), (snapshot) => {
         if (snapshot.exists()) {
-            const data = (snapshot.data().items as T[]) || [];
+            const rawItems = (snapshot.data().items as T[]) || [];
+            const data = rawItems.map(item => migrateDocument<T>(item, listName));
             setLocal(listName, data);
             onData(data);
             syncEvents.notify(false);
@@ -174,7 +217,9 @@ const saveBulkList = async <T>(listName: string, items: T[]): Promise<void> => {
 
     try {
         const docName = `${listName}_${uid}`;
-        await setDoc(doc(db, COLLECTIONS.LISTS, docName), { items: sanitizeData(items), userId: uid });
+        // Inject schema version into each item for consistency
+        const versionedItems = items.map(item => ({ ...item, schemaVersion: CURRENT_SCHEMA_VERSION }));
+        await setDoc(doc(db, COLLECTIONS.LISTS, docName), { items: sanitizeData(versionedItems), userId: uid });
         syncEvents.notify(false);
     } catch (error: any) {
         if (error.code === 'permission-denied') syncEvents.notify(true);
@@ -213,7 +258,7 @@ export const api = {
         setLocal(COLLECTIONS.CLASSES, [...current, newClass]);
 
         if (!isVirtualMode() && uid) {
-            try { await setDoc(doc(db, COLLECTIONS.CLASSES, newId), sanitizeData({ ...newClass, userId: uid })); } catch (e: any) {
+            try { await setDoc(doc(db, COLLECTIONS.CLASSES, newId), sanitizeData({ ...newClass, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
@@ -223,7 +268,7 @@ export const api = {
         const current = getLocal<Class>(COLLECTIONS.CLASSES).map(c => c.id === classId ? { ...updatedData, id: classId } : c);
         setLocal(COLLECTIONS.CLASSES, current);
         if (!isVirtualMode()) {
-            try { await updateDoc(doc(db, COLLECTIONS.CLASSES, classId), sanitizeData(updatedData)); } catch (e: any) {
+            try { await updateDoc(doc(db, COLLECTIONS.CLASSES, classId), sanitizeData({ ...updatedData, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
@@ -248,7 +293,7 @@ export const api = {
         if (!isVirtualMode() && uid) {
             const batch = writeBatch(db);
             batch.delete(doc(db, COLLECTIONS.CLASSES, classId));
-            batch.set(doc(db, COLLECTIONS.DELETED_CLASSES, classId), sanitizeData({ ...classToMove, userId: uid }));
+            batch.set(doc(db, COLLECTIONS.DELETED_CLASSES, classId), sanitizeData({ ...classToMove, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION }));
             try { await batch.commit(); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
@@ -272,7 +317,7 @@ export const api = {
         if (!isVirtualMode() && uid) {
             const batch = writeBatch(db);
             batch.delete(doc(db, COLLECTIONS.DELETED_CLASSES, classId));
-            batch.set(doc(db, COLLECTIONS.CLASSES, classId), sanitizeData({ ...classToRestore, userId: uid }));
+            batch.set(doc(db, COLLECTIONS.CLASSES, classId), sanitizeData({ ...classToRestore, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION }));
             try { await batch.commit(); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
@@ -309,7 +354,7 @@ export const api = {
         setLocal(COLLECTIONS.STUDENTS, [...current, newStudent]);
 
         if (!isVirtualMode() && uid) {
-            try { await setDoc(doc(db, COLLECTIONS.STUDENTS, newId), sanitizeData({ ...newStudent, userId: uid })); } catch (e: any) {
+            try { await setDoc(doc(db, COLLECTIONS.STUDENTS, newId), sanitizeData({ ...newStudent, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
@@ -335,7 +380,7 @@ export const api = {
 
         if (!isVirtualMode() && uid) {
             const batch = writeBatch(db);
-            newStudents.forEach(s => batch.set(doc(db, COLLECTIONS.STUDENTS, s.id), sanitizeData({ ...s, userId: uid })));
+            newStudents.forEach(s => batch.set(doc(db, COLLECTIONS.STUDENTS, s.id), sanitizeData({ ...s, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })));
             try { await batch.commit(); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
@@ -347,7 +392,7 @@ export const api = {
         const uid = getCurrentUserId();
         if (isVirtualMode() || !uid) return;
         const batch = writeBatch(db);
-        students.forEach(s => batch.set(doc(db, COLLECTIONS.STUDENTS, s.id), sanitizeData({ ...s, userId: uid })));
+        students.forEach(s => batch.set(doc(db, COLLECTIONS.STUDENTS, s.id), sanitizeData({ ...s, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })));
         try { await batch.commit(); } catch (e: any) {
             if (e.code === 'permission-denied') syncEvents.notify(true);
         }
@@ -356,7 +401,7 @@ export const api = {
         const current = getLocal<Student>(COLLECTIONS.STUDENTS).map(s => s.id === studentId ? { ...s, ...studentData } : s);
         setLocal(COLLECTIONS.STUDENTS, current);
         if (!isVirtualMode()) {
-            try { await updateDoc(doc(db, COLLECTIONS.STUDENTS, studentId), sanitizeData(studentData)); } catch (e: any) {
+            try { await updateDoc(doc(db, COLLECTIONS.STUDENTS, studentId), sanitizeData({ ...studentData, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
@@ -375,7 +420,7 @@ export const api = {
             const batch = writeBatch(db);
             studentsToMove.forEach(s => {
                 batch.delete(doc(db, COLLECTIONS.STUDENTS, s.id));
-                batch.set(doc(db, COLLECTIONS.DELETED_STUDENTS, s.id), sanitizeData({ ...s, userId: uid }));
+                batch.set(doc(db, COLLECTIONS.DELETED_STUDENTS, s.id), sanitizeData({ ...s, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION }));
             });
             try { await batch.commit(); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
@@ -393,7 +438,7 @@ export const api = {
         if (!isVirtualMode() && uid) {
             const batch = writeBatch(db);
             batch.delete(doc(db, COLLECTIONS.DELETED_STUDENTS, studentToRestore.id));
-            batch.set(doc(db, COLLECTIONS.STUDENTS, studentToRestore.id), sanitizeData({ ...studentToRestore, userId: uid }));
+            batch.set(doc(db, COLLECTIONS.STUDENTS, studentToRestore.id), sanitizeData({ ...studentToRestore, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION }));
             try { await batch.commit(); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
@@ -430,7 +475,7 @@ export const api = {
         setLocal(COLLECTIONS.ANECDOTES, updated);
         if (!isVirtualMode() && uid) {
             const batch = writeBatch(db);
-            newRecords.forEach(r => batch.set(doc(db, COLLECTIONS.ANECDOTES, r.id), sanitizeData({ ...r, userId: uid })));
+            newRecords.forEach(r => batch.set(doc(db, COLLECTIONS.ANECDOTES, r.id), sanitizeData({ ...r, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })));
             try { await batch.commit(); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
@@ -448,7 +493,7 @@ export const api = {
         setLocal(COLLECTIONS.USER_COMPETENCIES, updated);
         if (!isVirtualMode() && uid) {
             const batch = writeBatch(db);
-            newComps.forEach(c => batch.set(doc(db, COLLECTIONS.USER_COMPETENCIES, c.id), sanitizeData({ ...c, userId: uid })));
+            newComps.forEach(c => batch.set(doc(db, COLLECTIONS.USER_COMPETENCIES, c.id), sanitizeData({ ...c, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })));
             try { await batch.commit(); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
@@ -459,7 +504,7 @@ export const api = {
         const current = getLocal<Competency>(COLLECTIONS.USER_COMPETENCIES).map(c => c.id === competencyId ? { ...updatedData, id: competencyId } : c);
         setLocal(COLLECTIONS.USER_COMPETENCIES, current);
         if (!isVirtualMode()) {
-            try { await updateDoc(doc(db, COLLECTIONS.USER_COMPETENCIES, competencyId), sanitizeData(updatedData)); } catch (e: any) {
+            try { await updateDoc(doc(db, COLLECTIONS.USER_COMPETENCIES, competencyId), sanitizeData({ ...updatedData, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
@@ -485,7 +530,7 @@ export const api = {
         const updated = [...current, newInst];
         setLocal(COLLECTIONS.INSTRUMENTS, updated);
         if (!isVirtualMode() && uid) {
-            try { await setDoc(doc(db, COLLECTIONS.INSTRUMENTS, newId), sanitizeData({ ...newInst, userId: uid })); } catch (e: any) {
+            try { await setDoc(doc(db, COLLECTIONS.INSTRUMENTS, newId), sanitizeData({ ...newInst, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
@@ -495,7 +540,7 @@ export const api = {
         const current = getLocal<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS).map(i => i.id === instrumentId ? { ...updatedData, id: instrumentId } : i);
         setLocal(COLLECTIONS.INSTRUMENTS, current);
         if (!isVirtualMode()) {
-            try { await updateDoc(doc(db, COLLECTIONS.INSTRUMENTS, instrumentId), sanitizeData(updatedData)); } catch (e: any) {
+            try { await updateDoc(doc(db, COLLECTIONS.INSTRUMENTS, instrumentId), sanitizeData({ ...updatedData, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
@@ -504,6 +549,41 @@ export const api = {
 
     async getGrades(): Promise<Grade[]> { return fetchBulkList('grades', []); },
     async setGrades(grades: Grade[]): Promise<void> { return saveBulkList('grades', grades); },
+    async saveGrade(grade: Grade): Promise<void> {
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        const grades = getLocal<Grade>('grades'); // Using string literal 'grades' as per existing saveBulkList usage
+
+        const existingIndex = grades.findIndex(g => g.studentId === grade.studentId && g.instrumentId === grade.instrumentId);
+
+        const dataToSave = { ...grade, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION };
+
+        if (existingIndex >= 0) {
+            grades[existingIndex] = { ...grades[existingIndex], ...grade };
+        } else {
+            grades.push({ ...grade, userId: uid });
+        }
+        setLocal('grades', grades); // Using string literal 'grades'
+
+        if (!isVirtualMode()) {
+            try {
+                const q = query(
+                    collection(db, COLLECTIONS.GRADES),
+                    where("studentId", "==", grade.studentId),
+                    where("instrumentId", "==", grade.instrumentId),
+                    where("userId", "==", uid)
+                );
+                const snapshot = await getDocs(q);
+                if (!snapshot.empty) {
+                    await updateDoc(doc(db, COLLECTIONS.GRADES, snapshot.docs[0].id), sanitizeData(dataToSave));
+                } else {
+                    await addDoc(collection(db, COLLECTIONS.GRADES), sanitizeData(dataToSave));
+                }
+            } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify(true);
+            }
+        }
+    },
     async getRecoveryGrades(): Promise<RecoveryGrade[]> { return fetchBulkList('recovery_grades', []); },
     async saveRecoveryGrade(newGrade: Omit<RecoveryGrade, 'id'>): Promise<RecoveryGrade[]> {
         const current = getLocal<RecoveryGrade>('recovery_grades');
@@ -546,7 +626,7 @@ export const api = {
         const updated = [...current, newEntry];
         setLocal(COLLECTIONS.JOURNAL, updated);
         if (!isVirtualMode() && uid) {
-            try { await setDoc(doc(db, COLLECTIONS.JOURNAL, newId), sanitizeData({ ...newEntry, userId: uid })); } catch (e: any) {
+            try { await setDoc(doc(db, COLLECTIONS.JOURNAL, newId), sanitizeData({ ...newEntry, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
@@ -562,11 +642,37 @@ export const api = {
         const updated = [...current, newRes];
         setLocal(COLLECTIONS.RESOURCES, updated);
         if (!isVirtualMode() && uid) {
-            try { await setDoc(doc(db, COLLECTIONS.RESOURCES, newId), sanitizeData({ ...newRes, userId: uid })); } catch (e: any) {
+            try { await setDoc(doc(db, COLLECTIONS.RESOURCES, newId), sanitizeData({ ...newRes, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
         return updated;
+    },
+    async saveAttendance(record: AttendanceRecord): Promise<void> {
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        // Local logic omitted for brevity as it mirrors others
+        const attendance = getLocal<AttendanceRecord>('attendance'); // Note: Collection name inconsistency in local storage logic vs COLLECTIONS constant usage elsewhere. Assuming 'attendance' is key here or inconsistent.
+        // Actually, let's fix the local storage key to be consistent if possible, but sticking to existing logic for now.
+        // The original code used 'attendance' string literal for local storage getLocal.
+
+        const existingIndex = attendance.findIndex(a => a.studentId === record.studentId && a.date === record.date);
+        if (existingIndex >= 0) {
+            attendance[existingIndex] = record;
+        } else {
+            attendance.push(record);
+        }
+        setLocal('attendance', attendance);
+
+        if (!isVirtualMode()) {
+            const dataToSave = { ...record, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION };
+            const docId = `${record.studentId}_${record.date}`;
+            try {
+                await setDoc(doc(db, COLLECTIONS.ATTENDANCE, docId), sanitizeData(dataToSave));
+            } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify(true);
+            }
+        }
     },
 
     async getCustomEvents(): Promise<CustomEvent[]> { return fetchCollection<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS); },

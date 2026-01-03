@@ -4,7 +4,14 @@ export type View = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'REPORTS' | 'STUDEN
 
 export type FontSize = 'sm' | 'base' | 'lg';
 
-export interface Class {
+export const CURRENT_SCHEMA_VERSION = 1;
+export const APP_VERSION = 'v1.4.0 (Build 2026.01.03)';
+
+export interface BaseEntity {
+  schemaVersion?: number;
+}
+
+export interface Class extends BaseEntity {
   id: string;
   name: string; // Subject name, e.g., "Matemática"
   grade: string;
@@ -15,7 +22,7 @@ export interface Class {
   level?: string; // e.g., "Nivel Primario"
 }
 
-export interface Student {
+export interface Student extends BaseEntity {
   id: string;
   classId: string;
   name: string;
@@ -69,7 +76,7 @@ export interface DailyNote {
   note: string;
 }
 
-export interface AnecdotalRecord {
+export interface AnecdotalRecord extends BaseEntity {
   id: string;
   studentId: string;
   date: string; // ISO string
@@ -115,7 +122,7 @@ export interface Criterion {
 
 export type InstrumentType = 'Prueba Corta' | 'Examen' | 'Tarea' | 'Proyecto' | 'Observación' | 'Lista de Cotejo' | 'Escala Estimativa' | 'Rúbrica';
 
-export interface EvaluationInstrument {
+export interface EvaluationInstrument extends BaseEntity {
   id: string;
   classId: string;
   name: string;
@@ -129,7 +136,7 @@ export interface EvaluationInstrument {
   criteria?: Criterion[];
 }
 
-export interface Grade {
+export interface Grade extends BaseEntity {
   studentId: string;
   instrumentId: string;
   score: number | null; // null for not yet graded
@@ -147,7 +154,7 @@ export interface RecoveryGrade {
 
 
 // Teacher Profile Types
-export interface TeacherProfileData {
+export interface TeacherProfileData extends BaseEntity {
   name: string;
   email: string;
   phone: string;
