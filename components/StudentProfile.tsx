@@ -7,6 +7,7 @@ import { generateStudentSummary, transcribeAndAnalyzeAnecdote } from '../service
 import { AudioRecorder } from './AudioRecorder';
 import { AttendanceStatus } from '../types';
 import { uploadFile, dataURLToBlob } from '../services/storageService';
+import { authService } from '../services/authService';
 
 interface StudentProfileProps {
   student: Student;
@@ -237,16 +238,18 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ student, anecdot
       let photoUrl = undefined;
       let audioUrl = undefined;
 
+      const uid = authService.isDemoMode() ? 'DEMO_GUEST_USER' : (authService.getCurrentUser()?.id || 'unknown');
+
       // Upload Photo
       if (photoFile) {
-        const path = `evidence/photos/${Date.now()}_${photoFile.name}`;
+        const path = `users/${uid}/evidence/photos/${Date.now()}_${photoFile.name}`;
         photoUrl = await uploadFile(photoFile, path);
       }
 
       // Upload Audio
       if (audioPreview) {
         const audioBlob = dataURLToBlob(audioPreview);
-        const path = `evidence/audio/${Date.now()}.webm`;
+        const path = `users/${uid}/evidence/audio/${Date.now()}.webm`;
         audioUrl = await uploadFile(audioBlob, path);
       }
 

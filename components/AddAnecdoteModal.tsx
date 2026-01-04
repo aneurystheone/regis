@@ -4,6 +4,7 @@ import type { Student, AnecdotalRecord } from '../types';
 import { PlusIcon, XIcon, CameraIcon } from './icons';
 import { AudioRecorder } from './AudioRecorder';
 import { uploadFile, dataURLToBlob } from '../services/storageService';
+import { authService } from '../services/authService';
 
 interface AddAnecdoteModalProps {
   isOpen: boolean;
@@ -88,9 +89,11 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
         let photoUrl = undefined;
         let audioUrl = undefined;
 
+        const uid = authService.isDemoMode() ? 'DEMO_GUEST_USER' : (authService.getCurrentUser()?.id || 'unknown');
+
         // Upload Photo
         if (photoFile) {
-          const path = `evidence/photos/${Date.now()}_${photoFile.name}`;
+          const path = `users/${uid}/evidence/photos/${Date.now()}_${photoFile.name}`;
           photoUrl = await uploadFile(photoFile, path);
         }
 
@@ -98,7 +101,7 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
         if (audioPreview) {
           // AudioRecorder returns DataURL, convert to Blob
           const audioBlob = dataURLToBlob(audioPreview);
-          const path = `evidence/audio/${Date.now()}.webm`;
+          const path = `users/${uid}/evidence/audio/${Date.now()}.webm`;
           audioUrl = await uploadFile(audioBlob, path);
         }
 

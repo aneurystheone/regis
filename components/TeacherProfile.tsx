@@ -24,8 +24,8 @@ const TabButton: React.FC<{ label: string; icon: React.ReactNode; isActive: bool
     <button
         onClick={onClick}
         className={`flex items-center justify-center w-full px-4 py-3 font-semibold text-sm rounded-lg transition-colors duration-200 ${isActive
-                ? 'bg-indigo-600 text-white shadow'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+            ? 'bg-indigo-600 text-white shadow'
+            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
             }`}
     >
         {icon}
@@ -78,8 +78,9 @@ export const TeacherProfile: React.FC<TeacherProfileProps> = ({ profile, classes
 
         setIsUploadingPhoto(true);
         try {
+            const uid = authService.isDemoMode() ? 'DEMO_GUEST_USER' : (authService.getCurrentUser()?.id || 'unknown');
             const safeName = profile.name ? profile.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'user';
-            const path = `profile_photos/${safeName}_${Date.now()}`;
+            const path = `users/${uid}/profile_photos/${safeName}_${Date.now()}`;
 
             const downloadUrl = await uploadFile(file, path);
             await authService.updatePhotoURL(downloadUrl);

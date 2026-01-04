@@ -1,13 +1,13 @@
 
 import { auth } from '../firebase';
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   signInAnonymously,
-  signOut, 
+  signOut,
   onAuthStateChanged,
   updateProfile,
-  User as FirebaseUser 
+  User as FirebaseUser
 } from "firebase/auth";
 import { User } from '../types';
 
@@ -22,16 +22,16 @@ export const authService = {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
-        
+
         const updatedUser: User = {
           id: userCredential.user.uid,
           name: name,
           email: userCredential.user.email || '',
-          password: '' 
+          password: ''
         };
 
         if (authStateObserver) {
-            authStateObserver(updatedUser);
+          authStateObserver(updatedUser);
         }
 
         return updatedUser;
@@ -70,11 +70,11 @@ export const authService = {
       }
     } catch (error: any) {
       console.warn("Firebase Anonymous Auth restricted, switching to Virtual Demo Mode:", error.message);
-      
+
       // Fallback: Create a Virtual Session
       isVirtualDemo = true;
       localStorage.setItem('regis_virtual_demo', 'true');
-      
+
       const virtualUser: User = {
         id: 'DEMO_GUEST_USER',
         name: 'Invitado Demo (Local)',
@@ -91,15 +91,15 @@ export const authService = {
   // Update Photo
   async updatePhotoURL(photoURL: string): Promise<void> {
     if (auth.currentUser) {
-        await updateProfile(auth.currentUser, { photoURL });
-        if (authStateObserver) {
-            authStateObserver({
-                id: auth.currentUser.uid,
-                name: auth.currentUser.displayName || 'Usuario',
-                email: auth.currentUser.email || '',
-                password: ''
-            });
-        }
+      await updateProfile(auth.currentUser, { photoURL });
+      if (authStateObserver) {
+        authStateObserver({
+          id: auth.currentUser.uid,
+          name: auth.currentUser.displayName || 'Usuario',
+          email: auth.currentUser.email || '',
+          password: ''
+        });
+      }
     }
   },
 
@@ -114,22 +114,69 @@ export const authService = {
     }
   },
 
+  // Social Login & Recovery
+  async loginWithGoogle(): Promise<User | null> {
+    try {
+      const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
+    } catch (error) {
+      console.error("Google Login Error:", error);
+      throw error;
+    }
+  },
+
+  async loginWithFacebook(): Promise<User | null> {
+    try {
+      const { FacebookAuthProvider, signInWithPopup } = await import("firebase/auth");
+      const provider = new FacebookAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
+    } catch (error) {
+      console.error("Facebook Login Error:", error);
+      throw error;
+    }
+  },
+
+  async loginWithApple(): Promise<User | null> {
+    try {
+      const { OAuthProvider, signInWithPopup } = await import("firebase/auth");
+      const provider = new OAuthProvider('apple.com');
+      const result = await signInWithPopup(auth, provider);
+      return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
+    } catch (error) {
+      console.error("Apple Login Error:", error);
+      throw error;
+    }
+  },
+
+  async resetPassword(email: string): Promise<void> {
+    try {
+      const { sendPasswordResetEmail } = await import("firebase/auth");
+      await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      console.error("Reset Password Error:", error);
+      throw error;
+    }
+  },
+
   // Auth Observer
   onAuthStateChange(callback: (user: User | null) => void) {
     authStateObserver = callback;
-    
+
     // Check if we were in virtual demo mode
     const wasVirtual = localStorage.getItem('regis_virtual_demo') === 'true';
     if (wasVirtual) {
-        isVirtualDemo = true;
-        setTimeout(() => {
-            callback({
-                id: 'DEMO_GUEST_USER',
-                name: 'Invitado Demo (Local)',
-                email: 'demo@regis.app',
-                password: ''
-            });
-        }, 100);
+      isVirtualDemo = true;
+      setTimeout(() => {
+        callback({
+          id: 'DEMO_GUEST_USER',
+          name: 'Invitado Demo (Local)',
+          email: 'demo@regis.app',
+          password: ''
+        });
+      }, 100);
     }
 
     return onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
@@ -151,5 +198,16 @@ export const authService = {
 
   isDemoMode() {
     return isVirtualDemo || (auth.currentUser?.isAnonymous ?? false);
+  },
+
+  getCurrentUser() {
+    if (this.isDemoMode()) return { id: 'DEMO_GUEST_USER', name: 'Invitado', email: '', password: '' };
+    if (!auth.currentUser) return null;
+    return {
+      id: auth.currentUser.uid,
+      name: auth.currentUser.displayName || 'Usuario',
+      email: auth.currentUser.email || '',
+      password: ''
+    };
   }
 };

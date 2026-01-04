@@ -7,6 +7,10 @@ service firebase.storage {
       return request.auth != null;
     }
     
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
     function isImage() {
       return request.resource.contentType.matches('image/.*');
     }
@@ -20,24 +24,14 @@ service firebase.storage {
       return request.resource.size < 5 * 1024 * 1024; // 5MB
     }
 
-    // Profile Photos
-    match /profile_photos/{fileName} {
-      allow read: if true; // Publicly readable for profiles
-      allow write: if isAuthenticated() && isImage() && isSmallFile();
+    // User Data Isolation
+    // All user files must be in users/{userId}/...
+    match /users/{userId}/{allPaths=**} {
+      // Only the owner can read/write their files
+      allow read, write: if isOwner(userId);
     }
 
-    // Evidence (Photos and Audio)
-    match /evidence/{type}/{fileName} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() 
-                   && isSmallFile()
-                   && (
-                     (type == 'photos' && isImage()) ||
-                     (type == 'audio' && isAudio())
-                   );
-    }
-
-    // Fallback: Deny everything else
+    // Explicitly deny everything else to prevent leaks
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -36,3 +36,4 @@ try {
 }
 
 export { db, storage, auth };
+export * from "firebase/auth"; 
