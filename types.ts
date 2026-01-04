@@ -9,6 +9,7 @@ export const APP_VERSION = 'v1.4.0 (Build 2026.01.03)';
 
 export interface BaseEntity {
   schemaVersion?: number;
+  userId?: string;
 }
 
 export interface Class extends BaseEntity {
@@ -137,10 +138,12 @@ export interface EvaluationInstrument extends BaseEntity {
 }
 
 export interface Grade extends BaseEntity {
+  id: string; // Composite key: studentId_instrumentId
   studentId: string;
   instrumentId: string;
   score: number | null; // null for not yet graded
   criteriaScores?: Record<string, boolean | number | null>; // { criterionId: score }
+  userId?: string;
 }
 
 export interface RecoveryGrade {

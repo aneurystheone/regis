@@ -47,7 +47,9 @@ const COLLECTIONS = {
     CUSTOM_EVENTS: 'custom_events',
     LISTS: 'lists',
     LESSON_PLANS: 'lesson_plans',
-    APP_CONFIG: 'app_config'
+    APP_CONFIG: 'app_config',
+    GRADES: 'grades',
+    ATTENDANCE: 'attendance'
 };
 
 const mockFundamentalCompetencies: FundamentalCompetency[] = [
@@ -155,7 +157,13 @@ const fetchCollection = async <T extends { id: string }>(collectionName: string)
 
 const subscribeToCollection = <T extends { id: string }>(collectionName: string, onData: (data: T[]) => void) => {
     const uid = getCurrentUserId();
-    if (!uid || isVirtualMode()) return () => { };
+
+    // In Virtual Mode or if Auth is not ready but App requested data, load from LocalStorage immediately
+    if (!uid || isVirtualMode()) {
+        const localData = getLocal<T>(collectionName);
+        onData(localData);
+        return () => { };
+    }
 
     const q = query(collection(db, collectionName), where("userId", "==", uid));
     return onSnapshot(q, (snapshot) => {
@@ -166,6 +174,8 @@ const subscribeToCollection = <T extends { id: string }>(collectionName: string,
     }, (error) => {
         if (error.code === 'permission-denied') syncEvents.notify(true);
         console.error(`Error in ${collectionName} subscription:`, error);
+        // Fallback to local data on error
+        onData(getLocal<T>(collectionName));
     });
 };
 
@@ -193,7 +203,12 @@ const fetchBulkList = async <T>(listName: string, defaultData: T[]): Promise<T[]
 
 const subscribeToBulkList = <T>(listName: string, onData: (data: T[]) => void) => {
     const uid = getCurrentUserId();
-    if (!uid || isVirtualMode()) return () => { };
+
+    if (!uid || isVirtualMode()) {
+        const localData = getLocal<T>(listName);
+        onData(localData);
+        return () => { };
+    }
 
     const docName = `${listName}_${uid}`;
     return onSnapshot(doc(db, COLLECTIONS.LISTS, docName), (snapshot) => {
@@ -203,10 +218,15 @@ const subscribeToBulkList = <T>(listName: string, onData: (data: T[]) => void) =
             setLocal(listName, data);
             onData(data);
             syncEvents.notify(false);
+        } else {
+            // If doc doesn't exist yet, return empty or local? Local might have data not yet synced.
+            // To be safe, if cloud is empty, we might want local. But usually cloud is truth.
+            onData([]);
         }
     }, (error) => {
         if (error.code === 'permission-denied') syncEvents.notify(true);
         console.error(`Error in ${listName} bulk subscription:`, error);
+        onData(getLocal<T>(listName));
     });
 };
 
@@ -222,6 +242,7 @@ const saveBulkList = async <T>(listName: string, items: T[]): Promise<void> => {
         await setDoc(doc(db, COLLECTIONS.LISTS, docName), { items: sanitizeData(versionedItems), userId: uid });
         syncEvents.notify(false);
     } catch (error: any) {
+        console.error(`Error saving bulk list ${listName}:`, error);
         if (error.code === 'permission-denied') syncEvents.notify(true);
     }
 };
@@ -355,6 +376,7 @@ export const api = {
 
         if (!isVirtualMode() && uid) {
             try { await setDoc(doc(db, COLLECTIONS.STUDENTS, newId), sanitizeData({ ...newStudent, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
+                console.error("Error saving student:", e);
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
@@ -394,6 +416,7 @@ export const api = {
         const batch = writeBatch(db);
         students.forEach(s => batch.set(doc(db, COLLECTIONS.STUDENTS, s.id), sanitizeData({ ...s, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })));
         try { await batch.commit(); } catch (e: any) {
+            console.error("Error saving students batch:", e);
             if (e.code === 'permission-denied') syncEvents.notify(true);
         }
     },
@@ -580,6 +603,7 @@ export const api = {
                     await addDoc(collection(db, COLLECTIONS.GRADES), sanitizeData(dataToSave));
                 }
             } catch (e: any) {
+                console.error("Error saving grade:", e);
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
@@ -670,6 +694,7 @@ export const api = {
             try {
                 await setDoc(doc(db, COLLECTIONS.ATTENDANCE, docId), sanitizeData(dataToSave));
             } catch (e: any) {
+                console.error("Error saving attendance:", e);
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
         }
