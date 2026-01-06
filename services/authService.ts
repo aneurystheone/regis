@@ -7,13 +7,22 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
-  User as FirebaseUser
+  User as FirebaseUser,
+  GoogleAuthProvider,
+  signInWithPopup,
+  FacebookAuthProvider,
+  OAuthProvider,
+  sendPasswordResetEmail,
+  setPersistence,
+  browserLocalPersistence
 } from "firebase/auth";
 import { User } from '../types';
 
 // Store reference to the observer callback to trigger it manually if needed
 let authStateObserver: ((user: User | null) => void) | null = null;
 let isVirtualDemo = false;
+// Flag to prevent onAuthStateChanged from overwriting a successful login with null immediately due to race conditions
+let justLoggedIn = false;
 
 export const authService = {
   // Sign Up
@@ -46,6 +55,7 @@ export const authService = {
   // Login
   async login(email: string, pass: string): Promise<User | null> {
     try {
+      await setPersistence(auth, browserLocalPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       const u = userCredential.user;
       return {
@@ -107,6 +117,7 @@ export const authService = {
   async logout(): Promise<void> {
     try {
       isVirtualDemo = false;
+      justLoggedIn = false;
       localStorage.removeItem('regis_virtual_demo');
       await signOut(auth);
     } catch (error) {
@@ -116,11 +127,31 @@ export const authService = {
 
   // Social Login & Recovery
   async loginWithGoogle(): Promise<User | null> {
+    console.log("Iniciando login con Google...");
     try {
-      const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
+      await setPersistence(auth, browserLocalPersistence);
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
+      console.log("Google Popup finalizado. Usuario:", result.user);
+      const user = result.user;
+      const mappedUser = {
+        id: user.uid,
+        name: user.displayName || 'Usuario',
+        email: user.email || '',
+        password: ''
+      };
+      
+      justLoggedIn = true;
+      // Force update observer if it exists
+      if (authStateObserver) {
+          console.log("Forzando actualización de estado (observer)...");
+          authStateObserver(mappedUser);
+      }
+      
+      // Reset flag after 5 seconds
+      setTimeout(() => { justLoggedIn = false; }, 5000);
+
+      return mappedUser;
     } catch (error) {
       console.error("Google Login Error:", error);
       throw error;
@@ -129,10 +160,22 @@ export const authService = {
 
   async loginWithFacebook(): Promise<User | null> {
     try {
-      const { FacebookAuthProvider, signInWithPopup } = await import("firebase/auth");
+      await setPersistence(auth, browserLocalPersistence);
       const provider = new FacebookAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
+      const user = result.user;
+       const mappedUser = {
+        id: user.uid,
+        name: user.displayName || 'Usuario',
+        email: user.email || '',
+        password: ''
+      };
+      justLoggedIn = true;
+       if (authStateObserver) {
+          authStateObserver(mappedUser);
+      }
+      setTimeout(() => { justLoggedIn = false; }, 5000);
+      return mappedUser;
     } catch (error) {
       console.error("Facebook Login Error:", error);
       throw error;
@@ -141,10 +184,22 @@ export const authService = {
 
   async loginWithApple(): Promise<User | null> {
     try {
-      const { OAuthProvider, signInWithPopup } = await import("firebase/auth");
+      await setPersistence(auth, browserLocalPersistence);
       const provider = new OAuthProvider('apple.com');
       const result = await signInWithPopup(auth, provider);
-      return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
+      const user = result.user;
+       const mappedUser = {
+        id: user.uid,
+        name: user.displayName || 'Usuario',
+        email: user.email || '',
+        password: ''
+      };
+      justLoggedIn = true;
+       if (authStateObserver) {
+          authStateObserver(mappedUser);
+      }
+      setTimeout(() => { justLoggedIn = false; }, 5000);
+      return mappedUser;
     } catch (error) {
       console.error("Apple Login Error:", error);
       throw error;
@@ -153,7 +208,6 @@ export const authService = {
 
   async resetPassword(email: string): Promise<void> {
     try {
-      const { sendPasswordResetEmail } = await import("firebase/auth");
       await sendPasswordResetEmail(auth, email);
     } catch (error) {
       console.error("Reset Password Error:", error);
@@ -163,6 +217,7 @@ export const authService = {
 
   // Auth Observer
   onAuthStateChange(callback: (user: User | null) => void) {
+    console.log("Registrando observador de autenticación...");
     authStateObserver = callback;
 
     // Check if we were in virtual demo mode
@@ -180,6 +235,7 @@ export const authService = {
     }
 
     return onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      console.log("onAuthStateChanged disparado. User:", firebaseUser ? firebaseUser.uid : "null");
       // Only trigger if we are NOT in virtual mode (to avoid overwriting)
       if (firebaseUser) {
         isVirtualDemo = false;
@@ -191,6 +247,11 @@ export const authService = {
           password: ''
         });
       } else if (!isVirtualDemo && !wasVirtual) {
+        // If we just logged in explicitly, ignore a null update for a moment
+        if (justLoggedIn) {
+            console.log("Ignorando actualización 'null' de onAuthStateChanged debido a login reciente.");
+            return;
+        }
         callback(null);
       }
     });

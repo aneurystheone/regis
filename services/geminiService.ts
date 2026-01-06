@@ -1,12 +1,39 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { AnecdotalRecord, Student, Competency, InstrumentType } from '../types';
 
-// Obtención de la API KEY desde el entorno.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safe initialization:
+// We use a function to get the model so that if the API key is missing
+// (e.g. during initial load or if not set), the app doesn't crash immediately.
+let genAI: GoogleGenerativeAI | null = null;
+
+const getGenAI = () => {
+  if (!genAI) {
+    // Try both Vite standard and the process.env fallback (handled by vite define)
+    const apiKey = import.meta.env.VITE_API_KEY || process.env.API_KEY; 
+    if (apiKey) {
+      genAI = new GoogleGenerativeAI(apiKey);
+    } else {
+      console.warn("Vicente: API Key is missing. AI features will be disabled.");
+    }
+  }
+  return genAI;
+};
 
 const VICENTE_PERSONA = "Eres Vicente, un asistente docente con décadas de experiencia, cálido, organizado y siempre dispuesto a ayudar a tus colegas profesores. Tu tono es motivador, profesional y empático.";
 
+const getModel = (jsonMode: boolean = false) => {
+  const ai = getGenAI();
+  if (!ai) return null;
+  return ai.getGenerativeModel({ 
+    model: "gemini-1.5-flash",
+    generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined
+  });
+};
+
 export const generateStudentSummary = async (student: Student, anecdotes: AnecdotalRecord[]): Promise<string> => {
+  const model = getModel();
+  if (!model) return "Vicente no está disponible (falta configuración).";
+
   const prompt = `
     ${VICENTE_PERSONA}
     Como colega, he revisado los registros de ${student.name} y he preparado este resumen para ti.
@@ -18,19 +45,18 @@ export const generateStudentSummary = async (student: Student, anecdotes: Anecdo
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
-      contents: prompt,
-    });
-    return response.text || "Hola, soy Vicente. No pude procesar el resumen en este momento.";
+    const result = await model.generateContent(prompt);
+    return result.response.text() || "Hola, soy Vicente. No pude procesar el resumen en este momento.";
   } catch (error: any) {
     console.error("Error en Vicente (Summary):", error);
-    alert(`Error en Vicente (Resumen): ${error.message || 'Verifica tu API Key'}`);
     return "Lo siento, soy Vicente. Hubo un pequeño error técnico al intentar ayudarte.";
   }
 };
 
 export const generateEvaluationCriteria = async (competencies: Competency[], content: string, instrumentType: InstrumentType): Promise<string[]> => {
+  const model = getModel(true);
+  if (!model) return [];
+
   const prompt = `
         ${VICENTE_PERSONA}
         Ayúdame a diseñar los criterios para un instrumento de "${instrumentType}" sobre "${content}".
@@ -38,24 +64,15 @@ export const generateEvaluationCriteria = async (competencies: Competency[], con
         ${competencies.map(c => `- ${c.name}`).join('\n')}
 
         Devuelve un array JSON de strings con 5-7 criterios claros.
+        Ejemplo: ["Criterio 1", "Criterio 2"]
     `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
-      }
-    });
-
-    let jsonStr = response.text ? response.text.trim() : "[]";
-    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(jsonStr);
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    return text ? JSON.parse(text) : [];
   } catch (error: any) {
     console.error("Error en Vicente (Criteria):", error);
-    alert(`Error en Vicente (Criterios): ${error.message || 'Verifica tu API Key'}`);
     return [];
   }
 };
@@ -65,34 +82,26 @@ export const transcribeAndAnalyzeAnecdote = async (
   mimeType: string,
   studentName: string
 ): Promise<{ transcribedNote: string; category: AnecdotalRecord['category'] } | null> => {
+  const model = getModel(true);
+  if (!model) return null;
+
   const prompt = `
     ${VICENTE_PERSONA}
-    He escuchado tu nota sobre ${studentName}. Aquí tienes mi transcripción sugerida y la categoría donde creo que encaja mejor.
+    He escuchado tu nota sobre ${studentName}.
+    Transcribe el audio y categorízalo.
     Responde en JSON con 'transcribedNote' y 'category' (Académico, Comportamiento, Social, Otro).
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: { parts: [{ text: prompt }, { inlineData: { mimeType, data: audioBase64 } }] },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            transcribedNote: { type: Type.STRING },
-            category: { type: Type.STRING },
-          },
-          required: ["transcribedNote", "category"],
-        },
-      },
-    });
-
-    let jsonStr = response.text ? response.text.trim() : "{}";
-    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(jsonStr);
+    // Note: The new SDK expects 'inlineData' structure slightly differently if passing direct parts
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { data: audioBase64, mimeType } }
+    ]);
+    const text = result.response.text();
+    return text ? JSON.parse(text) : null;
   } catch (error: any) {
-    alert(`Error en Vicente (Audio): ${error.message || 'Verifica tu API Key'}`);
+    console.error("Error en Vicente (Audio):", error);
     return null;
   }
 };
@@ -102,6 +111,9 @@ export const generateLessonPlan = async (
   subject: string,
   topic: string
 ): Promise<{ objectives: string[]; materials: string[]; activities: { time: string; description: string }[] } | null> => {
+  const model = getModel(true);
+  if (!model) return null;
+
   const prompt = `
     ${VICENTE_PERSONA}
     He preparado una propuesta de planificación para tu clase de ${grade} en ${subject} sobre "${topic}".
@@ -111,35 +123,11 @@ export const generateLessonPlan = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            objectives: { type: Type.ARRAY, items: { type: Type.STRING } },
-            materials: { type: Type.ARRAY, items: { type: Type.STRING } },
-            activities: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: { time: { type: Type.STRING }, description: { type: Type.STRING } },
-                required: ['time', 'description']
-              }
-            }
-          },
-          required: ['objectives', 'materials', 'activities']
-        }
-      }
-    });
-
-    let jsonStr = response.text ? response.text.trim() : "{}";
-    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(jsonStr);
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    return text ? JSON.parse(text) : null;
   } catch (error: any) {
-    alert(`Error en Vicente (Planificación): ${error.message || 'Verifica tu API Key'}`);
+    console.error("Error en Vicente (Planificación):", error);
     return null;
   }
 };
@@ -148,6 +136,9 @@ export const extractStudentsFromImage = async (
   imageBase64: string,
   mimeType: string
 ): Promise<Array<{ name: string; orderNumber?: number }>> => {
+  const model = getModel(true);
+  if (!model) return [];
+
   const prompt = `
     ${VICENTE_PERSONA}
     He escaneado la lista que me pasaste. He intentado leer todos los nombres con cuidado.
@@ -155,30 +146,14 @@ export const extractStudentsFromImage = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
-      contents: { parts: [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }] },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              orderNumber: { type: Type.INTEGER },
-            },
-            required: ["name"],
-          },
-        },
-      },
-    });
-
-    let jsonStr = response.text ? response.text.trim() : "[]";
-    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(jsonStr);
+    const result = await model.generateContent([
+      prompt,
+      { inlineData: { data: imageBase64, mimeType } }
+    ]);
+    const text = result.response.text();
+    return text ? JSON.parse(text) : [];
   } catch (error: any) {
-    alert(`Error en Vicente (Extractor): ${error.message || 'Verifica tu API Key'}`);
+    console.error("Error en Vicente (Extractor):", error);
     return [];
   }
 };
