@@ -17,6 +17,11 @@
 }
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     background-color: var(--color-brand-bg);
     @apply text-brand-text font-sans;
@@ -55,18 +60,15 @@
   }
 
   .font-size-sm {
-    font-size: 0.875rem;
-    line-height: 1.25rem;
+    font-size: 87.5%;
   }
 
   .font-size-base {
-    font-size: 1rem;
-    line-height: 1.5rem;
+    font-size: 100%;
   }
 
   .font-size-lg {
-    font-size: 1.125rem;
-    line-height: 1.75rem;
+    font-size: 112.5%;
   }
 }
 
