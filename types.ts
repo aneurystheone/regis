@@ -5,7 +5,7 @@ export type View = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'REPORTS' | 'STUDEN
 export type FontSize = 'sm' | 'base' | 'lg';
 
 export const CURRENT_SCHEMA_VERSION = 1;
-export const APP_VERSION = 'v1.4.0 (Build 2026.01.03)';
+export const APP_VERSION = 'v1.5.0 (Build 2026.01.07)';
 
 export interface BaseEntity {
   schemaVersion?: number;

@@ -6,14 +6,7 @@ import { DownloadIcon, SparklesIcon, AcademicCapIcon, StarIcon, DocumentTextIcon
 import { generateStudentSummary } from '../services/geminiService';
 import { ClassSelector } from './ClassSelector';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
-
-// Extend jsPDF type to include autoTable for TypeScript
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
-}
+import autoTable from 'jspdf-autotable';
 
 const competencyGroups: CompetencyGroup[] = ['G1', 'G2', 'G3', 'G4'];
 const evaluationPeriods: EvaluationPeriod[] = ['P1', 'P2', 'P3', 'P4'];
@@ -92,16 +85,6 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
 
   const handleGeneratePDF = async (reportType: 'studentSummary' | 'classGradebook' | 'classAttendance' | 'classCompetencies' | 'gradeSheet' | 'monthlyAttendance' | 'annualAttendance' | 'classCompetencyAverages') => {
     setIsLoading(true);
-
-    // Access jsPDF from the window object to avoid reference errors
-    const jspdf = (window as any).jspdf;
-    if (!jspdf) {
-      alert("La librería de generación de PDF no se ha cargado correctamente. Por favor, recargue la página.");
-      setIsLoading(false);
-      return;
-    }
-
-    const { jsPDF } = jspdf;
 
     // Helper to draw standard official header
     const drawOfficialHeader = (doc: any, title: string, subTitle: string = "") => {
@@ -280,7 +263,7 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
       // Combine headers
       const finalBody = [subHead, ...tableData];
 
-      doc.autoTable({
+      autoTable(doc, {
         head: head,
         body: finalBody, // Note: autotable treats first rows as data if simpler, but here we manually construct nested structure roughly or use generic body
         startY: 60,
@@ -356,7 +339,7 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
         return row;
       });
 
-      doc.autoTable({
+      autoTable(doc, {
         head: head,
         body: tableData,
         startY: 60,
@@ -405,7 +388,7 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
       const late = studentAttendance.filter(a => a.status === AttendanceStatus.LATE).length;
       const excused = studentAttendance.filter(a => a.status === AttendanceStatus.EXCUSED).length;
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: yPos,
         head: [['Presente', 'Ausente', 'Tarde', 'Excusa']],
         body: [[present, absent, late, excused]],
@@ -424,7 +407,7 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
       const studentAnecdotes = anecdotes.filter(a => a.studentId === student.id).slice(0, 10);
       const anecdoteData = studentAnecdotes.map(a => [new Date(a.date).toLocaleDateString(), a.category, a.note]);
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: yPos,
         head: [['Fecha', 'Categoría', 'Observación']],
         body: anecdoteData,
@@ -451,7 +434,7 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
         });
         return row;
       });
-      doc.autoTable({
+      autoTable(doc, {
         head: [headers],
         body: data,
         startY: 60,
@@ -534,7 +517,7 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
         return row;
       });
 
-      doc.autoTable({
+      autoTable(doc, {
         head: [headerRow1, headerRow2, headerRow3],
         body: bodyData,
         startY: 60,
@@ -574,7 +557,7 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
               const fundamental = fundamentalCompetencies.find(f => f.id === c.fundamentalId);
               return [c.code, c.name, fundamental?.name || '', c.description];
             });
-            d.autoTable({
+            autoTable(d, {
               head: [['Código', 'Competencia Específica', 'Competencia Fundamental', 'Descripción']],
               body: data, startY: 60, styles: { fontSize: 8 }
             });
