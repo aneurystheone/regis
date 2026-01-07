@@ -609,9 +609,38 @@ function App() {
     await authService.logout();
     setUser(null);
     setIsLogoutConfirmOpen(false);
-    // Clear local state
+
+    // Reset App State to defaults
+    setIsDarkMode(false);
+    setFontSize('base');
+    setAiFeatures({
+      summaryGeneration: false,
+      criteriaGeneration: false,
+      lessonPlanning: false,
+      studentExtraction: false,
+      audioAnalysis: false,
+      vicenteAssistant: false,
+    });
+
+    // Clear data state
     setClasses([]);
     setStudents([]);
+    setDeletedStudents([]);
+    setDeletedClasses([]);
+    setAttendance([]);
+    setDailyNotes([]);
+    setAnecdotes([]);
+    setInstruments([]);
+    setGrades([]);
+    setRecoveryGrades([]);
+    setCompetencies([]);
+    setJournalEntries([]);
+    setResources([]);
+    setCustomEvents([]);
+    setLessonPlans([]);
+    setTeacherProfile(null);
+    setSelectedClassId(null);
+    setCurrentView('DASHBOARD');
   };
 
   const activeStudentIdValue = studentToEdit?.id || studentToMove?.id;

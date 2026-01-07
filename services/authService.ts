@@ -107,7 +107,7 @@ export const authService = {
   async logout(): Promise<void> {
     try {
       isVirtualDemo = false;
-      localStorage.removeItem('regis_virtual_demo');
+      localStorage.clear();
       await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
