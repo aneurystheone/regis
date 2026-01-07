@@ -15,14 +15,23 @@ service cloud.firestore {
       return request.auth.token.admin == true;
     }
 
+    function isDemoTemplate(data) {
+      return data.userId == 'DEMO_PROFILE_TEMPLATE';
+    }
+
     // --- User Data Isolation Rules ---
     // Rules for collections where documents have a 'userId' field
     // (Classes, Students, Grades, etc.)
     
     // Generic Match for standard collections
     match /{collectionName}/{docId} {
-      // Check if the document belongs to the user
-      allow read, update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || resource == null);
+      // Allow reading if owner OR if it's the shared demo template
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+      
+      // Update/Delete still restricted to owner
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      // Create restricted to current user's UID
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
     

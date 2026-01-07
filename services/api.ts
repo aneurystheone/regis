@@ -1,5 +1,6 @@
 
 import { db, auth } from '../firebase';
+import * as mockData from './mockData';
 import {
     collection,
     getDocs,
@@ -64,7 +65,23 @@ const mockFundamentalCompetencies: FundamentalCompetency[] = [
 
 const defaultTeacherProfile: TeacherProfileData = { name: 'Usuario', email: 'usuario@example.com', phone: '', specialization: 'Educación', experienceYears: 0, profilePictureUrl: 'https://ui-avatars.com/api/?name=User&background=random' };
 
-const isVirtualMode = () => localStorage.getItem('regis_virtual_demo') === 'true' || !auth?.currentUser;
+const isVirtualMode = () => localStorage.getItem('regis_virtual_demo') === 'true' || !auth?.currentUser || auth.currentUser.isAnonymous;
+
+const localListeners: Record<string, ((data: any) => void)[]> = {};
+
+const subscribeToLocal = (key: string, callback: (data: any) => void) => {
+    if (!localListeners[key]) localListeners[key] = [];
+    localListeners[key].push(callback);
+    return () => {
+        localListeners[key] = localListeners[key].filter(cb => cb !== callback);
+    };
+};
+
+const notifyLocalChange = (key: string, data: any) => {
+    if (localListeners[key]) {
+        localListeners[key].forEach(cb => cb(data));
+    }
+};
 
 const getLocal = <T>(key: string): T[] => {
     try {
@@ -75,6 +92,7 @@ const getLocal = <T>(key: string): T[] => {
 
 const setLocal = (key: string, data: any) => {
     localStorage.setItem(`regis_store_${key}`, JSON.stringify(data));
+    notifyLocalChange(key, data);
 };
 
 const getCurrentUserId = () => {
@@ -93,6 +111,10 @@ function sanitizeData(data: any): any {
         );
     }
     return data;
+}
+
+function generateId(prefix: string): string {
+    return `${prefix}${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
 }
 
 // Migration Logic
@@ -137,7 +159,13 @@ const fetchDocument = async <T extends { id: string }>(collectionName: string, d
 const fetchCollection = async <T extends { id: string }>(collectionName: string): Promise<T[]> => {
     const uid = getCurrentUserId();
     if (!uid) return [];
-    if (isVirtualMode()) return getLocal<T>(collectionName);
+
+    if (isVirtualMode()) {
+        const local = getLocal<T>(collectionName);
+        if (local.length > 0) return local;
+        // If empty, try template
+        return api.fetchFromTemplateIfEmpty<T>(collectionName);
+    }
 
     try {
         const q = query(collection(db, collectionName), where("userId", "==", uid));
@@ -151,6 +179,12 @@ const fetchCollection = async <T extends { id: string }>(collectionName: string)
             console.error(`Vicente: Permisos insuficientes para ${collectionName}. Usando copia local.`);
             syncEvents.notify(true);
         }
+
+        // If in virtual mode AND firebase failed (or no auth), try template
+        if (isVirtualMode() && getLocal(collectionName).length === 0) {
+            return api.fetchFromTemplateIfEmpty<T>(collectionName);
+        }
+
         return getLocal<T>(collectionName);
     }
 };
@@ -158,12 +192,14 @@ const fetchCollection = async <T extends { id: string }>(collectionName: string)
 const subscribeToCollection = <T extends { id: string }>(collectionName: string, onData: (data: T[]) => void) => {
     const uid = getCurrentUserId();
 
-    // In Virtual Mode or if Auth is not ready but App requested data, load from LocalStorage immediately
     if (!uid || isVirtualMode()) {
-        const localData = getLocal<T>(collectionName);
-        onData(localData);
+        onData(getLocal<T>(collectionName));
+        if (isVirtualMode()) {
+            return subscribeToLocal(collectionName, onData);
+        }
         return () => { };
     }
+    // ...
 
     const q = query(collection(db, collectionName), where("userId", "==", uid));
     return onSnapshot(q, (snapshot) => {
@@ -194,9 +230,20 @@ const fetchBulkList = async <T>(listName: string, defaultData: T[]): Promise<T[]
             syncEvents.notify(false);
             return data;
         }
+
+        // If doc doesn't exist and in virtual mode, try template
+        if (isVirtualMode() && getLocal(listName).length === 0) {
+            return api.fetchBulkListFromTemplateIfEmpty<T>(listName);
+        }
+
         return getLocal<T>(listName);
     } catch (error: any) {
         if (error.code === 'permission-denied') syncEvents.notify(true);
+
+        if (isVirtualMode() && getLocal(listName).length === 0) {
+            return api.fetchBulkListFromTemplateIfEmpty<T>(listName);
+        }
+
         return getLocal<T>(listName);
     }
 };
@@ -205,12 +252,22 @@ const subscribeToBulkList = <T>(listName: string, onData: (data: T[]) => void) =
     const uid = getCurrentUserId();
 
     if (!uid || isVirtualMode()) {
+        onData(getLocal<T>(listName));
+        if (isVirtualMode()) {
+            return subscribeToLocal(listName, onData);
+        }
+        return () => { };
+    }
+
+    const docName = `${listName}_${uid}`;
+
+    // In Virtual Mode, we rely on api.fetchBulkList to trigger any template population
+    if (isVirtualMode()) {
         const localData = getLocal<T>(listName);
         onData(localData);
         return () => { };
     }
 
-    const docName = `${listName}_${uid}`;
     return onSnapshot(doc(db, COLLECTIONS.LISTS, docName), (snapshot) => {
         if (snapshot.exists()) {
             const rawItems = (snapshot.data().items as T[]) || [];
@@ -219,8 +276,6 @@ const subscribeToBulkList = <T>(listName: string, onData: (data: T[]) => void) =
             onData(data);
             syncEvents.notify(false);
         } else {
-            // If doc doesn't exist yet, return empty or local? Local might have data not yet synced.
-            // To be safe, if cloud is empty, we might want local. But usually cloud is truth.
             onData([]);
         }
     }, (error) => {
@@ -251,12 +306,87 @@ export const api = {
     async seedDemoData(): Promise<void> {
         const classes = await this.getClasses();
         if (classes.length === 0) {
-            const classId = `C_SEED_${Date.now()}`;
-            const demoClass: Class = {
-                id: classId, name: 'Ciencias Sociales', grade: '4to', section: 'B',
-                schoolYear: '2024-2025', schedule: 'Mañanas', color: '#1F3A5F', level: 'Nivel Secundario'
-            };
-            await this.addClass(demoClass);
+            // Populate from mockData
+            for (const cls of mockData.mockClasses) {
+                await this.addClass(cls);
+            }
+            for (const student of mockData.mockStudents) {
+                await this.addStudent(student);
+            }
+            for (const inst of mockData.mockInstruments) {
+                await this.addInstrument(inst);
+            }
+            for (const comp of mockData.mockCompetencies) {
+                await this.addCompetencies([comp]);
+            }
+            await this.setTeacherProfile(mockData.mockTeacherProfile);
+        }
+    },
+
+    async seedFirebaseDemoTemplate(): Promise<void> {
+        const templateUid = mockData.DEMO_TEMPLATE_UID;
+        console.log(`Seeding Firebase Demo Template: ${templateUid}`);
+
+        const batch = writeBatch(db);
+
+        // Simple helper to add to batch
+        const addToBatch = (colName: string, items: any[]) => {
+            items.forEach(item => {
+                const docRef = doc(db, colName, item.id);
+                batch.set(docRef, sanitizeData({ ...item, userId: templateUid, schemaVersion: CURRENT_SCHEMA_VERSION }));
+            });
+        };
+
+        addToBatch(COLLECTIONS.CLASSES, mockData.mockClasses);
+        addToBatch(COLLECTIONS.STUDENTS, mockData.mockStudents);
+        addToBatch(COLLECTIONS.INSTRUMENTS, mockData.mockInstruments);
+        addToBatch(COLLECTIONS.USER_COMPETENCIES, mockData.mockCompetencies);
+
+        // Special case for list-based data if any (none yet in mockData but just in case)
+
+        // Special case for Teacher Profile
+        batch.set(doc(db, COLLECTIONS.TEACHER_PROFILE, templateUid), sanitizeData({ ...mockData.mockTeacherProfile, userId: templateUid }));
+
+        await batch.commit();
+        console.log("Firebase Demo Template seeded successfully.");
+    },
+
+    async fetchFromTemplateIfEmpty<T extends { id: string }>(collectionName: string): Promise<T[]> {
+        const local = getLocal<T>(collectionName);
+        if (local.length > 0) return local;
+
+        console.log(`Local storage for ${collectionName} is empty. Fetching from template...`);
+        try {
+            const q = query(collection(db, collectionName), where("userId", "==", mockData.DEMO_TEMPLATE_UID));
+            const snapshot = await getDocs(q);
+            const data = snapshot.docs.map(doc => migrateDocument<T>({ id: doc.id, ...doc.data() }, collectionName));
+            setLocal(collectionName, data);
+            return data;
+        } catch (error) {
+            console.error(`Error fetching ${collectionName} from template:`, error);
+            return [];
+        }
+    },
+
+    async fetchBulkListFromTemplateIfEmpty<T>(listName: string): Promise<T[]> {
+        const local = getLocal<T>(listName);
+        if (local.length > 0) return local;
+
+        console.log(`Local storage for bulk list ${listName} is empty. Fetching from template...`);
+        try {
+            const uid = mockData.DEMO_TEMPLATE_UID;
+            const docName = `${listName}_${uid}`;
+            const docSnap = await getDoc(doc(db, COLLECTIONS.LISTS, docName));
+            if (docSnap.exists()) {
+                const rawItems = (docSnap.data().items as T[]) || [];
+                const data = rawItems.map(item => migrateDocument<T>(item, listName));
+                setLocal(listName, data);
+                return data;
+            }
+            return [];
+        } catch (error) {
+            console.error(`Error fetching bulk list ${listName} from template:`, error);
+            return [];
         }
     },
 
@@ -270,10 +400,10 @@ export const api = {
     },
 
     async getClasses(): Promise<Class[]> { return fetchCollection<Class>(COLLECTIONS.CLASSES); },
-    async addClass(classData: Omit<Class, 'id'>): Promise<Class[]> {
+    async addClass(classData: Class | Omit<Class, 'id'>): Promise<Class[]> {
         const uid = getCurrentUserId();
-        const newId = `C${Date.now()}`;
-        const newClass: Class = { ...classData, id: newId };
+        const newId = (classData as any).id || generateId('C');
+        const newClass: Class = { ...classData, id: newId } as Class;
 
         const current = getLocal<Class>(COLLECTIONS.CLASSES);
         setLocal(COLLECTIONS.CLASSES, [...current, newClass]);
@@ -510,7 +640,7 @@ export const api = {
     async getCompetencies(): Promise<Competency[]> { return fetchCollection<Competency>(COLLECTIONS.USER_COMPETENCIES); },
     async addCompetencies(competenciesData: Omit<Competency, 'id'>[]): Promise<Competency[]> {
         const uid = getCurrentUserId();
-        const newComps = competenciesData.map(c => ({ ...c, id: `COMP${Date.now()}${Math.random().toString(36).substr(2, 5)}` }));
+        const newComps = competenciesData.map(c => ({ ...c, id: generateId('COMP') }));
         const current = getLocal<Competency>(COLLECTIONS.USER_COMPETENCIES);
         const updated = [...current, ...newComps];
         setLocal(COLLECTIONS.USER_COMPETENCIES, updated);
@@ -547,7 +677,7 @@ export const api = {
     async getInstruments(): Promise<EvaluationInstrument[]> { return fetchCollection<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS); },
     async addInstrument(instrumentData: Omit<EvaluationInstrument, 'id'>): Promise<EvaluationInstrument[]> {
         const uid = getCurrentUserId();
-        const newId = `INST${Date.now()}`;
+        const newId = generateId('INST');
         const newInst: EvaluationInstrument = { ...instrumentData, id: newId };
         const current = getLocal<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS);
         const updated = [...current, newInst];
@@ -584,7 +714,7 @@ export const api = {
         if (existingIndex >= 0) {
             grades[existingIndex] = { ...grades[existingIndex], ...grade };
         } else {
-            grades.push({ ...grade, userId: uid });
+            grades.push({ ...grade, id: generateId('G'), userId: uid });
         }
         setLocal('grades', grades); // Using string literal 'grades'
 
@@ -617,7 +747,7 @@ export const api = {
             updated = [...current];
             updated[idx] = { ...newGrade, id: current[idx].id };
         } else {
-            updated = [...current, { ...newGrade, id: `RG${Date.now()}` }];
+            updated = [...current, { ...newGrade, id: generateId('RG') }];
         }
         await this.setRecoveryGrades(updated);
         return updated;
@@ -634,6 +764,7 @@ export const api = {
     },
     async setTeacherProfile(profile: TeacherProfileData): Promise<void> {
         localStorage.setItem('regis_profile', JSON.stringify(profile));
+        notifyLocalChange('teacher_profile', profile);
         const uid = getCurrentUserId();
         if (isVirtualMode() || !uid) return;
         try { await setDoc(doc(db, COLLECTIONS.TEACHER_PROFILE, uid), sanitizeData({ ...profile, userId: uid })); } catch (e: any) {
@@ -644,7 +775,7 @@ export const api = {
     async getJournalEntries(): Promise<JournalEntry[]> { return fetchCollection<JournalEntry>(COLLECTIONS.JOURNAL); },
     async addJournalEntry(content: string): Promise<JournalEntry[]> {
         const uid = getCurrentUserId();
-        const newId = `J${Date.now()}`;
+        const newId = generateId('J');
         const newEntry: JournalEntry = { id: newId, date: new Date().toISOString(), content };
         const current = getLocal<JournalEntry>(COLLECTIONS.JOURNAL);
         const updated = [...current, newEntry];
@@ -660,7 +791,7 @@ export const api = {
     async getResources(): Promise<Resource[]> { return fetchCollection<Resource>(COLLECTIONS.RESOURCES); },
     async addResource(title: string, url: string, description: string): Promise<Resource[]> {
         const uid = getCurrentUserId();
-        const newId = `R${Date.now()}`;
+        const newId = generateId('R');
         const newRes: Resource = { id: newId, title, url, description };
         const current = getLocal<Resource>(COLLECTIONS.RESOURCES);
         const updated = [...current, newRes];
@@ -703,7 +834,7 @@ export const api = {
     async getCustomEvents(): Promise<CustomEvent[]> { return fetchCollection<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS); },
     async addCustomEvent(eventData: Omit<CustomEvent, 'id'>): Promise<CustomEvent[]> {
         const uid = getCurrentUserId();
-        const newId = `E${Date.now()}`;
+        const newId = generateId('E');
         const newEvent: CustomEvent = { ...eventData, id: newId };
         const current = getLocal<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS);
         const updated = [...current, newEvent];
@@ -739,7 +870,7 @@ export const api = {
     async getLessonPlans(): Promise<LessonPlan[]> { return fetchCollection<LessonPlan>(COLLECTIONS.LESSON_PLANS); },
     async addLessonPlan(planData: Omit<LessonPlan, 'id'>): Promise<LessonPlan[]> {
         const uid = getCurrentUserId();
-        const newId = `LP${Date.now()}`;
+        const newId = generateId('LP');
         const newPlan: LessonPlan = { ...planData, id: newId };
         const current = getLocal<LessonPlan>(COLLECTIONS.LESSON_PLANS);
         const updated = [...current, newPlan];
@@ -837,9 +968,17 @@ export const api = {
     onLessonPlansChange(callback: (plans: LessonPlan[]) => void) { return subscribeToCollection<LessonPlan>(COLLECTIONS.LESSON_PLANS, callback); },
     onTeacherProfileChange(callback: (profile: TeacherProfileData) => void) {
         const uid = getCurrentUserId();
-        if (!uid || isVirtualMode()) return () => { };
+        if (!uid) return () => { };
+
+        if (isVirtualMode()) {
+            this.getTeacherProfile().then(callback);
+            return subscribeToLocal('teacher_profile', callback);
+        }
+
         return onSnapshot(doc(db, COLLECTIONS.TEACHER_PROFILE, uid), (snapshot) => {
             if (snapshot.exists()) callback(snapshot.data() as TeacherProfileData);
         });
     }
 };
+
+if (typeof window !== 'undefined') (window as any).api = api;

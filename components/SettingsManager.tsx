@@ -125,6 +125,26 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                                         <FontSizeButton label="Grande" size="lg" currentSize={fontSize} onClick={setFontSize} />
                                     </div>
                                 </div>
+
+                                {localStorage.getItem('regis_virtual_demo') === 'true' && (
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-t border-rose-100 dark:border-rose-900/30 pt-6">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-rose-600 dark:text-rose-400">Restablecer Datos Demo</h3>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">Borra todos los cambios locales y recarga el perfil original.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                if (confirm('¿Estás seguro de que quieres restablecer todos los datos del demo? Se perderán todos tus cambios locales.')) {
+                                                    localStorage.clear();
+                                                    window.location.reload();
+                                                }
+                                            }}
+                                            className="px-6 py-2.5 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400 font-bold rounded-lg border border-rose-200 dark:border-rose-900/50 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 dark:hover:text-white transition-all shadow-sm"
+                                        >
+                                            Restablecer Demo
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
