@@ -505,10 +505,22 @@ export const api = {
         setLocal(COLLECTIONS.STUDENTS, [...current, newStudent]);
 
         if (!isVirtualMode() && uid) {
-            try { await setDoc(doc(db, COLLECTIONS.STUDENTS, newId), sanitizeData({ ...newStudent, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })); } catch (e: any) {
+            try {
+                console.log('Attempting to save student to Firestore:', {
+                    studentId: newId,
+                    userId: uid,
+                    isVirtual: isVirtualMode(),
+                    authUser: auth?.currentUser?.uid
+                });
+                await setDoc(doc(db, COLLECTIONS.STUDENTS, newId), sanitizeData({ ...newStudent, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION }));
+                console.log('Student saved successfully to Firestore');
+            } catch (e: any) {
                 console.error("Error saving student:", e);
+                console.error("Error details:", { code: e.code, message: e.message, uid, isVirtual: isVirtualMode() });
                 if (e.code === 'permission-denied') syncEvents.notify(true);
             }
+        } else {
+            console.log('Skipping Firestore save (virtual mode or no uid):', { isVirtual: isVirtualMode(), uid });
         }
         return this.getStudents();
     },

@@ -90,6 +90,7 @@ export interface AnecdotalRecord extends BaseEntity {
 // Gradebook Types
 export type EvaluationPeriod = 'P1' | 'P2' | 'P3' | 'P4';
 export type CompetencyGroup = 'G1' | 'G2' | 'G3' | 'G4';
+export type PrimarioCompetencyGroup = 'GP1' | 'GP2' | 'GP3'; // Primario uses 3 groups
 
 
 export interface FundamentalCompetency {

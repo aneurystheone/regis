@@ -31,12 +31,33 @@ interface GradebookManagerProps {
 }
 
 const evaluationPeriods: EvaluationPeriod[] = ['P1', 'P2', 'P3', 'P4'];
-const competencyGroups: CompetencyGroup[] = ['G1', 'G2', 'G3', 'G4'];
-const groupNames: Record<CompetencyGroup, string> = {
+
+// Secundario: 4 groups
+const secundarioGroups: CompetencyGroup[] = ['G1', 'G2', 'G3', 'G4'];
+const secundarioGroupNames: Record<CompetencyGroup, string> = {
     G1: "Comunicativa",
     G2: "Lógico/Crítico",
     G3: "Ética/Ciudadana",
     G4: "Científica/Salud"
+};
+
+// Primario: 3 groups (mapping G1, G2+G4, G3)
+const primarioGroups: CompetencyGroup[] = ['G1', 'G2', 'G3'];
+const primarioGroupNames: Record<CompetencyGroup, string> = {
+    G1: "Comunicativa",
+    G2: "Pensamiento Lógico", // Includes G2 and G4 from fundamental competencies
+    G3: "Ética y Ciudadana", // Includes G3 from fundamental competencies
+    G4: "" // Not used in Primario
+};
+
+// Helper function to get groups and names based on level
+const getGroupConfig = (level: string) => {
+    const isPrimario = level?.toLowerCase().includes('primari');
+    return {
+        groups: isPrimario ? primarioGroups : secundarioGroups,
+        groupNames: isPrimario ? primarioGroupNames : secundarioGroupNames,
+        isPrimario
+    };
 };
 
 const TabButton: React.FC<{ label: string; icon: React.ReactNode; isActive: boolean; onClick: () => void; className?: string }> = ({ label, icon, isActive, onClick, className = '' }) => (
@@ -70,7 +91,8 @@ const calculateGradeSheet = (
     grades: Grade[],
     recoveryGrades: RecoveryGrade[],
     competenciesByGroup: Map<CompetencyGroup, string[]>,
-    level: string
+    level: string,
+    competencyGroups: CompetencyGroup[]
 ) => {
     const data = new Map<string, { [key: string]: number | null }>();
 
@@ -162,7 +184,8 @@ const calculatePeriodDetails = (
     recoveryGrades: RecoveryGrade[],
     competenciesByGroup: Map<CompetencyGroup, string[]>,
     selectedPeriod: EvaluationPeriod,
-    level: string
+    level: string,
+    competencyGroups: CompetencyGroup[]
 ) => {
     return classStudents.map(student => {
         const instrumentGrades: Record<string, { score: number | null, instrument: EvaluationInstrument }> = {};
@@ -265,15 +288,35 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
         setExpandedStudentId(null);
     }, [selectedClassId]);
 
+    // Get current class and determine group configuration
+    const currentClass = useMemo(() => classes.find(c => c.id === selectedClassId), [classes, selectedClassId]);
+    const { groups: competencyGroups, groupNames, isPrimario } = useMemo(() =>
+        getGroupConfig(currentClass?.level || 'Nivel Primario'),
+        [currentClass]
+    );
+
+    // For Primario, we need to merge G2 and G4 competencies into the G2 group
     const competenciesByGroup = useMemo(() => {
         const map = new Map<CompetencyGroup, string[]>();
         fundamentalCompetencies.forEach(fc => {
             const competencyIdsForGroup = competencies.filter(c => c.fundamentalId === fc.id).map(c => c.id);
-            const existing = map.get(fc.group) || [];
-            map.set(fc.group, [...existing, ...competencyIdsForGroup]);
+
+            if (isPrimario) {
+                // In Primario mode, merge G2 and G4 into G2, keep G1 and G3 as is
+                let targetGroup = fc.group;
+                if (fc.group === 'G4') {
+                    targetGroup = 'G2'; // Merge G4 into G2 for Primario
+                }
+                const existing = map.get(targetGroup) || [];
+                map.set(targetGroup, [...existing, ...competencyIdsForGroup]);
+            } else {
+                // Secundario: keep all 4 groups separate
+                const existing = map.get(fc.group) || [];
+                map.set(fc.group, [...existing, ...competencyIdsForGroup]);
+            }
         });
         return map;
-    }, [fundamentalCompetencies, competencies]);
+    }, [fundamentalCompetencies, competencies, isPrimario]);
 
     const competencyToGroupMap = useMemo(() => {
         const map = new Map<string, CompetencyGroup>();
@@ -290,10 +333,9 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
         if (!selectedClassId) return { data: new Map(), classStudents: [] };
         const classStudents = students.filter(s => s.classId === selectedClassId && (studentFilter ? s.id === studentFilter : true)).sort((a, b) => a.name.localeCompare(b.name));
         const classInstruments = instruments.filter(i => i.classId === selectedClassId);
-        const currentClass = classes.find(c => c.id === selectedClassId);
-        const data = calculateGradeSheet(classStudents, classInstruments, grades, recoveryGrades, competenciesByGroup, currentClass?.level || 'Nivel Primario');
+        const data = calculateGradeSheet(classStudents, classInstruments, grades, recoveryGrades, competenciesByGroup, currentClass?.level || 'Nivel Primario', competencyGroups);
         return { data, classStudents };
-    }, [selectedClassId, students, studentFilter, instruments, grades, recoveryGrades, competenciesByGroup, classes]);
+    }, [selectedClassId, students, studentFilter, instruments, grades, recoveryGrades, competenciesByGroup, classes, currentClass, competencyGroups]);
 
     const periodDetailData = useMemo(() => {
         if (gradeViewType !== 'period' || !selectedClassId) return { periodInstruments: [], studentPeriodGrades: [], periodHeaderGroups: [] };
@@ -321,7 +363,7 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
         const classStudents = students.filter(s => s.classId === selectedClassId && (studentFilter ? s.id === studentFilter : true)).sort((a, b) => a.name.localeCompare(b.name));
         const currentClass = classes.find(c => c.id === selectedClassId);
 
-        const studentPeriodGrades = calculatePeriodDetails(periodInstruments, classStudents, grades, recoveryGrades, competenciesByGroup, selectedPeriod, currentClass?.level || 'Nivel Primario');
+        const studentPeriodGrades = calculatePeriodDetails(periodInstruments, classStudents, grades, recoveryGrades, competenciesByGroup, selectedPeriod, currentClass?.level || 'Nivel Primario', competencyGroups);
 
         const periodHeaderGroups: { group: CompetencyGroup | 'N/A'; name: string; colSpan: number }[] = [];
         if (periodInstruments.length > 0) {
@@ -339,7 +381,7 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
         }
 
         return { periodInstruments, studentPeriodGrades, periodHeaderGroups };
-    }, [gradeViewType, selectedClassId, selectedPeriod, instruments, students, grades, studentFilter, competencyToGroupMap, periodCompetencyFilter, competenciesByGroup, recoveryGrades, competencies]);
+    }, [gradeViewType, selectedClassId, selectedPeriod, instruments, students, grades, studentFilter, competencyToGroupMap, periodCompetencyFilter, competenciesByGroup, recoveryGrades, competencies, competencyGroups, classes]);
 
     const classInstruments = useMemo(() => instruments.filter(i => i.classId === selectedClassId), [instruments, selectedClassId]);
     const classCompetencies = useMemo(() => competencies.filter(c => c.classId === selectedClassId), [competencies, selectedClassId]);
@@ -433,7 +475,7 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
                                 <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-20">
                                     <tr>
                                         <th rowSpan={2} className="px-4 py-3 text-left font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider sticky left-0 bg-slate-50 dark:bg-slate-800 z-30 border-b border-r border-slate-200 dark:border-slate-700 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.1)] w-64">Estudiante</th>
-                                        <th colSpan={4} className="px-2 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-indigo-50/50 dark:bg-indigo-900/20">Promedios por Grupo de Competencia</th>
+                                        <th colSpan={competencyGroups.length} className="px-2 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-indigo-50/50 dark:bg-indigo-900/20">Promedios por Grupo de Competencia</th>
                                         <th rowSpan={2} className="px-4 py-3 text-center font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider sticky right-0 bg-emerald-50 dark:bg-emerald-900/20 z-20 border-b border-l border-slate-200 dark:border-slate-700 w-32">Calificación Final</th>
                                     </tr>
                                     <tr>

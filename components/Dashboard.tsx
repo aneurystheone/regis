@@ -241,6 +241,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
           icon={<StarIcon className="w-5 h-5" />}
           onClick={() => onNavigate('GRADEBOOK_INSTRUMENTS')}
         />
+        <ActionButton
+          label="Añadir incidencia"
+          icon={<ExclamationIcon className="w-5 h-5" />}
+          onClick={onAddAnecdoteClick}
+        />
         {aiFeatures.lessonPlanning && (
           <ActionButton
             label="Ayúdame con..."
