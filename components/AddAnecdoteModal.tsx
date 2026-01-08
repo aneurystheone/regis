@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Student, AnecdotalRecord } from '../types';
-import { PlusIcon, XIcon, CameraIcon } from './icons';
+import { PlusIcon, XIcon, CameraIcon, SparklesIcon } from './icons';
 import { AudioRecorder } from './AudioRecorder';
 import { uploadFile, dataURLToBlob } from '../services/storageService';
 import { authService } from '../services/authService';
+import { transcribeAndAnalyzeAnecdote } from '../services/geminiService';
 
 interface AddAnecdoteModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [audioPreview, setAudioPreview] = useState<string | null>(null); // This remains Base64/Blob URL for preview
   const [isUploading, setIsUploading] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -43,20 +45,22 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
       setAudioPreview(null);
       setIsSearchFocused(false);
       setIsUploading(false);
+      setIsTranscribing(false);
     }
   }, [isOpen]);
 
   const selectedStudents = useMemo(() => {
-    return filteredStudents.filter(s => selectedStudentIds.includes(s.id));
-  }, [filteredStudents, selectedStudentIds]);
+    return students.filter(s => selectedStudentIds.includes(s.id));
+  }, [students, selectedStudentIds]);
 
   const availableStudents = useMemo(() => {
     const lowerCaseQuery = searchQuery.toLowerCase();
-    return filteredStudents.filter(s =>
+    // Allow searching through ALL students (Global Search)
+    return students.filter(s =>
       !selectedStudentIds.includes(s.id) &&
-      (searchQuery ? s.name.toLowerCase().includes(lowerCaseQuery) : true)
+      (searchQuery ? s.name.toLowerCase().includes(lowerCaseQuery) : (selectedClassId ? s.classId === selectedClassId : true))
     );
-  }, [filteredStudents, searchQuery, selectedStudentIds]);
+  }, [students, searchQuery, selectedStudentIds, selectedClassId]);
 
   const handleSelectStudent = (studentId: string) => {
     setSelectedStudentIds(prev => [...prev, studentId]);
@@ -79,6 +83,30 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
 
   const handleAudioComplete = (audioDataUrl: string) => {
     setAudioPreview(audioDataUrl);
+  };
+
+  const handleTranscribe = async () => {
+    if (!audioPreview) return;
+
+    setIsTranscribing(true);
+    try {
+      // Extract Base64 and mimeType from dataURL
+      const [header, base64Data] = audioPreview.split(',');
+      const mimeType = header.match(/:(.*?);/)?.[1] || 'audio/webm';
+
+      const firstStudentName = selectedStudents[0]?.name || "el estudiante";
+      const result = await transcribeAndAnalyzeAnecdote(base64Data, mimeType, firstStudentName);
+
+      if (result) {
+        setNote(prev => prev ? `${prev}\n\n${result.transcribedNote}` : result.transcribedNote);
+        setCategory(result.category);
+      }
+    } catch (error) {
+      console.error("Transcription failed:", error);
+      alert("Error al transcribir el audio.");
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -189,9 +217,19 @@ export const AddAnecdoteModal: React.FC<AddAnecdoteModalProps> = ({ isOpen, onCl
             </div>
           )}
           {audioPreview && (
-            <div className="relative group w-fit">
-              <audio src={audioPreview} controls />
-              <button type="button" onClick={() => setAudioPreview(null)} className="absolute -top-2 -right-2 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-70 transition-all">&times;</button>
+            <div className="relative group w-full flex items-center gap-4 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg border border-slate-100 dark:border-slate-600">
+              <audio src={audioPreview} controls className="h-8 flex-grow" />
+              <button
+                type="button"
+                onClick={handleTranscribe}
+                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-900 transition-colors text-sm font-semibold disabled:opacity-50"
+                disabled={isTranscribing}
+                title="Transcribir audio con Vicente"
+              >
+                {isTranscribing ? <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" /> : <SparklesIcon className="w-4 h-4" />}
+                {isTranscribing ? 'Transcribiendo...' : 'Transcribir'}
+              </button>
+              <button type="button" onClick={() => setAudioPreview(null)} className="p-1 rounded-full text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600" title="Eliminar grabación">&times;</button>
             </div>
           )}
           <div className="flex justify-between items-center gap-4">

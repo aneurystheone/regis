@@ -99,12 +99,6 @@ function App() {
     }
   });
 
-  useEffect(() => {
-    const unsub = api.onAIFeaturesChange((features) => {
-      setAiFeatures(features);
-    });
-    return unsub;
-  }, []);
 
   // Data State
   const [classes, setClasses] = useState<Class[]>([]);
@@ -217,8 +211,10 @@ function App() {
     const initializeData = async () => {
       const sidebarState = await api.getIsSidebarCollapsed();
       const initialFundamental = await api.getFundamentalCompetencies();
+      const initialAIFeatures = await api.getAIFeatures();
       setIsSidebarCollapsed(sidebarState);
       setFundamentalCompetencies(initialFundamental);
+      setAiFeatures(initialAIFeatures);
 
       // Seed demo data if needed
       if (authService.isDemoMode()) {
@@ -254,7 +250,8 @@ function App() {
       api.onResourcesChange(setResources),
       api.onEventsChange(setCustomEvents),
       api.onLessonPlansChange(setLessonPlans),
-      api.onTeacherProfileChange(setTeacherProfile)
+      api.onTeacherProfileChange(setTeacherProfile),
+      api.onAIFeaturesChange(setAiFeatures)
     ];
 
     return () => {
