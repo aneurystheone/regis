@@ -122,7 +122,7 @@ export interface Criterion {
   text: string;
 }
 
-export type InstrumentType = 'Prueba Corta' | 'Examen' | 'Tarea' | 'Proyecto' | 'Observación' | 'Lista de Cotejo' | 'Escala Estimativa' | 'Rúbrica';
+export type InstrumentType = 'Prueba Corta' | 'Examen' | 'Tarea' | 'Participación' | 'Proyecto' | 'Lista de Cotejo';
 
 export interface EvaluationInstrument extends BaseEntity {
   id: string;

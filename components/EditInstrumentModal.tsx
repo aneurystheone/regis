@@ -3,7 +3,14 @@ import type { Class, Competency, EvaluationInstrument, EvaluationPeriod, Instrum
 import { PlusIcon, XIcon, SparklesIcon, TrashIcon } from './icons';
 import { generateEvaluationCriteria } from '../services/geminiService';
 
-const instrumentTypes: InstrumentType[] = ['Prueba Corta', 'Examen', 'Tarea', 'Proyecto', 'Observación', 'Lista de Cotejo', 'Escala Estimativa', 'Rúbrica'];
+const instrumentTypes: InstrumentType[] = [
+  'Prueba Corta',
+  'Examen',
+  'Tarea',
+  'Participación',
+  'Proyecto',
+  'Lista de Cotejo'
+];
 const evaluationPeriods: EvaluationPeriod[] = ['P1', 'P2', 'P3', 'P4'];
 
 interface EditInstrumentModalProps {
@@ -28,7 +35,6 @@ export const EditInstrumentModal: React.FC<EditInstrumentModalProps> = ({ isOpen
   const [actividades, setActividades] = useState('');
   const [criteria, setCriteria] = useState<Criterion[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-
   useEffect(() => {
     if (instrument && isOpen) {
       setClassId(instrument.classId);
@@ -45,7 +51,7 @@ export const EditInstrumentModal: React.FC<EditInstrumentModalProps> = ({ isOpen
   }, [instrument, isOpen]);
 
   const availableCompetencies = useMemo(() => competencies.filter(c => c.classId === classId), [competencies, classId]);
-  const showCriteriaSection = ['Lista de Cotejo', 'Escala Estimativa', 'Rúbrica'].includes(type);
+  const showCriteriaSection = type === 'Lista de Cotejo';
 
   const handleAddCriterion = () => setCriteria(prev => [...prev, { id: `C${Date.now()}`, text: '' }]);
   const handleCriterionChange = (id: string, text: string) => setCriteria(prev => prev.map(c => c.id === id ? { ...c, text } : c));
@@ -99,7 +105,20 @@ export const EditInstrumentModal: React.FC<EditInstrumentModalProps> = ({ isOpen
             <div><label htmlFor="edit-inst-name" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Nombre</label><input id="edit-inst-name" type="text" value={name} onChange={e => setName(e.target.value)} className={inputStyles} required /></div>
             <div><label htmlFor="edit-inst-type" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Tipo</label><select id="edit-inst-type" value={type} onChange={e => setType(e.target.value as any)} className={inputStyles} required>{instrumentTypes.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
             <div><label htmlFor="edit-inst-date" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Fecha</label><input id="edit-inst-date" type="date" value={date} onChange={e => setDate(e.target.value)} className={inputStyles} required /></div>
-            <div><label htmlFor="edit-inst-points" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Puntos</label><input id="edit-inst-points" type="number" value={totalPoints} onChange={e => setTotalPoints(Number(e.target.value))} className={inputStyles} required min="0" /></div>
+            <div>
+              <label htmlFor="edit-inst-points" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                Puntos
+              </label>
+              <input
+                id="edit-inst-points"
+                type="number"
+                value={totalPoints}
+                onChange={e => setTotalPoints(Number(e.target.value))}
+                className={inputStyles}
+                required
+                min="0"
+              />
+            </div>
             <div><label htmlFor="edit-inst-period" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Período</label><select id="edit-inst-period" value={period} onChange={e => setPeriod(e.target.value as any)} className={inputStyles} required>{evaluationPeriods.map(p => <option key={p} value={p}>{p}</option>)}</select></div>
           </div>
           {/* Contenidos y Actividades */}

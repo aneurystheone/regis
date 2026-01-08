@@ -3,7 +3,14 @@ import type { Class, Competency, EvaluationInstrument, EvaluationPeriod, Instrum
 import { PlusIcon, XIcon, SparklesIcon, TrashIcon } from './icons';
 import { generateEvaluationCriteria } from '../services/geminiService';
 
-const instrumentTypes: InstrumentType[] = ['Prueba Corta', 'Examen', 'Tarea', 'Proyecto', 'Observación', 'Lista de Cotejo', 'Escala Estimativa', 'Rúbrica'];
+const instrumentTypes: InstrumentType[] = [
+  'Prueba Corta',
+  'Examen',
+  'Tarea',
+  'Participación',
+  'Proyecto',
+  'Lista de Cotejo'
+];
 const evaluationPeriods: EvaluationPeriod[] = ['P1', 'P2', 'P3', 'P4'];
 
 interface AddInstrumentModalProps {
@@ -30,7 +37,7 @@ export const AddInstrumentModal: React.FC<AddInstrumentModalProps> = ({ isOpen, 
   const [isGenerating, setIsGenerating] = useState(false);
 
   const availableCompetencies = useMemo(() => competencies.filter(c => c.classId === classId), [competencies, classId]);
-  const showCriteriaSection = ['Lista de Cotejo', 'Escala Estimativa', 'Rúbrica'].includes(type);
+  const showCriteriaSection = type === 'Lista de Cotejo';
 
   useEffect(() => {
     if (isOpen) {
@@ -122,8 +129,18 @@ export const AddInstrumentModal: React.FC<AddInstrumentModalProps> = ({ isOpen, 
               <input id="inst-date" type="date" value={date} onChange={e => setDate(e.target.value)} className={inputStyles} required />
             </div>
             <div>
-              <label htmlFor="inst-points" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Puntos Totales</label>
-              <input id="inst-points" type="number" value={totalPoints} onChange={e => setTotalPoints(Number(e.target.value))} className={inputStyles} required min="0" />
+              <label htmlFor="inst-points" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                Puntos Totales
+              </label>
+              <input
+                id="inst-points"
+                type="number"
+                value={totalPoints}
+                onChange={e => setTotalPoints(Number(e.target.value))}
+                className={inputStyles}
+                required
+                min="0"
+              />
             </div>
             <div>
               <label htmlFor="inst-period" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Período</label>

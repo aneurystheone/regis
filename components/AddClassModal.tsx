@@ -10,24 +10,51 @@ interface AddClassModalProps {
   classes: Class[];
 }
 
-const subjects = [
-  'Lengua Española', 'Matemática', 'Ciencias Sociales', 'Ciencias de la Naturaleza',
-  'Biología', 'Química', 'Física', 'Formación Integral Humana y Religiosa',
-  'Educación Artística', 'Educación Física', 'Inglés', 'Francés',
-  'Informática', 'Contabilidad', 'Mercadeo'
-].sort();
+// Subjects for Nivel Primario - in specific order
+const primarioSubjects = [
+  'Lengua Española',
+  'Matemática',
+  'Ciencias Sociales',
+  'Ciencias de la Naturaleza',
+  'Formación Integral Humana y Religiosa',
+  'Educación Artística',
+  'Educación Física',
+  'Inglés'
+];
+
+// All subjects for Nivel Secundario - in specific order (same as Primario, plus additional subjects)
+const secundarioSubjects = [
+  'Lengua Española',
+  'Matemática',
+  'Ciencias Sociales',
+  'Ciencias de la Naturaleza',
+  'Biología',
+  'Química',
+  'Física',
+  'Formación Integral Humana y Religiosa',
+  'Educación Artística',
+  'Educación Física',
+  'Inglés',
+  'Francés',
+  'Informática',
+  'Contabilidad',
+  'Mercadeo'
+];
 
 const levels = ['Nivel Primario', 'Nivel Secundario'];
 const grades = ['1ro', '2do', '3ro', '4to', '5to', '6to'];
 const sections = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onAddClass, classes }) => {
-  const [subject, setSubject] = useState(subjects[0]);
   const [level, setLevel] = useState('Nivel Primario');
+  const [subject, setSubject] = useState(primarioSubjects[0]);
   const [grade, setGrade] = useState('1ro');
   const [section, setSection] = useState('A');
   const [schoolYear, setSchoolYear] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Get available subjects based on selected level
+  const availableSubjects = level === 'Nivel Primario' ? primarioSubjects : secundarioSubjects;
 
   // Generate dynamic school years
   const years = React.useMemo(() => {
@@ -51,8 +78,8 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
       const startYear = now.getMonth() > 5 ? currentY : currentY - 1;
       setSchoolYear(`${startYear}-${startYear + 1}`);
 
-      setSubject(subjects[0]);
       setLevel('Nivel Primario');
+      setSubject(primarioSubjects[0]);
       setGrade('1ro');
       setSection('A');
       setError(null);
@@ -116,7 +143,13 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
               <select
                 id="class-level"
                 value={level}
-                onChange={(e) => setLevel(e.target.value)}
+                onChange={(e) => {
+                  const newLevel = e.target.value;
+                  setLevel(newLevel);
+                  // Reset subject to first available when level changes
+                  const newSubjects = newLevel === 'Nivel Primario' ? primarioSubjects : secundarioSubjects;
+                  setSubject(newSubjects[0]);
+                }}
                 className={inputBaseClasses}
                 required
               >
@@ -134,7 +167,7 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
                 className={inputBaseClasses}
                 required
               >
-                {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
