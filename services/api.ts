@@ -156,8 +156,8 @@ const fetchDocument = async <T extends { id: string }>(collectionName: string, d
     }
 };
 
-const fetchCollection = async <T extends { id: string }>(collectionName: string): Promise<T[]> => {
-    const uid = getCurrentUserId();
+const fetchCollection = async <T extends { id: string }>(collectionName: string, userIdOverride?: string): Promise<T[]> => {
+    const uid = userIdOverride || getCurrentUserId();
     if (!uid) return [];
 
     if (isVirtualMode()) {
@@ -189,8 +189,8 @@ const fetchCollection = async <T extends { id: string }>(collectionName: string)
     }
 };
 
-const subscribeToCollection = <T extends { id: string }>(collectionName: string, onData: (data: T[]) => void) => {
-    const uid = getCurrentUserId();
+const subscribeToCollection = <T extends { id: string }>(collectionName: string, onData: (data: T[]) => void, userIdOverride?: string) => {
+    const uid = userIdOverride || getCurrentUserId();
 
     if (!uid || isVirtualMode()) {
         onData(getLocal<T>(collectionName));
@@ -248,8 +248,8 @@ const fetchBulkList = async <T>(listName: string, defaultData: T[]): Promise<T[]
     }
 };
 
-const subscribeToBulkList = <T>(listName: string, onData: (data: T[]) => void) => {
-    const uid = getCurrentUserId();
+const subscribeToBulkList = <T>(listName: string, onData: (data: T[]) => void, userIdOverride?: string) => {
+    const uid = userIdOverride || getCurrentUserId();
 
     if (!uid || isVirtualMode()) {
         onData(getLocal<T>(listName));
@@ -648,7 +648,10 @@ export const api = {
         return updated;
     },
 
-    async getFundamentalCompetencies(): Promise<FundamentalCompetency[]> { return mockFundamentalCompetencies; },
+    async getFundamentalCompetencies(userIdOverride?: string): Promise<FundamentalCompetency[]> {
+        // For now returning mock data as template, but accepting the argument for consistent API
+        return mockFundamentalCompetencies;
+    },
     async getCompetencies(): Promise<Competency[]> { return fetchCollection<Competency>(COLLECTIONS.USER_COMPETENCIES); },
     async addCompetencies(competenciesData: Omit<Competency, 'id'>[]): Promise<Competency[]> {
         const uid = getCurrentUserId();
@@ -771,7 +774,15 @@ export const api = {
         if (isVirtualMode()) return JSON.parse(localStorage.getItem('regis_profile') || JSON.stringify(defaultTeacherProfile));
         try {
             const docSnap = await getDoc(doc(db, COLLECTIONS.TEACHER_PROFILE, uid!));
-            return docSnap.exists() ? docSnap.data() as TeacherProfileData : defaultTeacherProfile;
+            if (docSnap.exists()) return docSnap.data() as TeacherProfileData;
+
+            // For new users, return a profile pre-populated with auth info
+            return {
+                ...defaultTeacherProfile,
+                name: auth.currentUser?.displayName || defaultTeacherProfile.name,
+                email: auth.currentUser?.email || defaultTeacherProfile.email,
+                profilePictureUrl: auth.currentUser?.photoURL || defaultTeacherProfile.profilePictureUrl
+            };
         } catch { return defaultTeacherProfile; }
     },
     async setTeacherProfile(profile: TeacherProfileData): Promise<void> {
@@ -923,7 +934,7 @@ export const api = {
     async setFontSize(size: FontSize): Promise<void> { localStorage.setItem('teacherkit-fontSize', size); },
     async getLastSelectedClassId(): Promise<string | null> { return localStorage.getItem('teacherkit-lastSelectedClassId'); },
     async setLastSelectedClassId(classId: string): Promise<void> { localStorage.setItem('teacherkit-lastSelectedClassId', classId); },
-    async getAIFeatures(): Promise<AIFeatures> {
+    async getAIFeatures(userIdOverride?: string): Promise<AIFeatures> {
         if (!isVirtualMode()) {
             try {
                 const docSnap = await getDoc(doc(db, COLLECTIONS.APP_CONFIG, 'global_ai_features'));
@@ -953,8 +964,8 @@ export const api = {
             }
         }
     },
-    onAIFeaturesChange(callback: (features: AIFeatures) => void) {
-        if (isVirtualMode()) return () => { };
+    onAIFeaturesChange(callback: (features: AIFeatures) => void, userIdOverride?: string) {
+        if (isVirtualMode() && !userIdOverride) return () => { };
         return onSnapshot(doc(db, COLLECTIONS.APP_CONFIG, 'global_ai_features'), (snapshot) => {
             if (snapshot.exists()) {
                 callback(snapshot.data().features as AIFeatures);
@@ -963,33 +974,62 @@ export const api = {
     },
 
     // Subscriptions
-    onClassesChange(callback: (classes: Class[]) => void) { return subscribeToCollection<Class>(COLLECTIONS.CLASSES, callback); },
-    onStudentsChange(callback: (students: Student[]) => void) { return subscribeToCollection<Student>(COLLECTIONS.STUDENTS, callback); },
-    onDeletedStudentsChange(callback: (students: Student[]) => void) { return subscribeToCollection<Student>(COLLECTIONS.DELETED_STUDENTS, callback); },
-    onDeletedClassesChange(callback: (classes: Class[]) => void) { return subscribeToCollection<Class>(COLLECTIONS.DELETED_CLASSES, callback); },
-    onAttendanceChange(callback: (attendance: AttendanceRecord[]) => void) { return subscribeToBulkList<AttendanceRecord>('attendance', callback); },
-    onDailyNotesChange(callback: (notes: DailyNote[]) => void) { return subscribeToBulkList<DailyNote>('daily_notes', callback); },
-    onAnecdotesChange(callback: (anecdotes: AnecdotalRecord[]) => void) { return subscribeToCollection<AnecdotalRecord>(COLLECTIONS.ANECDOTES, callback); },
-    onInstrumentsChange(callback: (instruments: EvaluationInstrument[]) => void) { return subscribeToCollection<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS, callback); },
-    onGradesChange(callback: (grades: Grade[]) => void) { return subscribeToBulkList<Grade>('grades', callback); },
-    onRecoveryGradesChange(callback: (grades: RecoveryGrade[]) => void) { return subscribeToBulkList<RecoveryGrade>('recovery_grades', callback); },
-    onCompetenciesChange(callback: (competencies: Competency[]) => void) { return subscribeToCollection<Competency>(COLLECTIONS.USER_COMPETENCIES, callback); },
-    onJournalChange(callback: (entries: JournalEntry[]) => void) { return subscribeToCollection<JournalEntry>(COLLECTIONS.JOURNAL, callback); },
-    onResourcesChange(callback: (resources: Resource[]) => void) { return subscribeToCollection<Resource>(COLLECTIONS.RESOURCES, callback); },
-    onEventsChange(callback: (events: CustomEvent[]) => void) { return subscribeToCollection<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS, callback); },
-    onLessonPlansChange(callback: (plans: LessonPlan[]) => void) { return subscribeToCollection<LessonPlan>(COLLECTIONS.LESSON_PLANS, callback); },
-    onTeacherProfileChange(callback: (profile: TeacherProfileData) => void) {
-        const uid = getCurrentUserId();
-        if (!uid) return () => { };
+    onClassesChange(callback: (classes: Class[]) => void, uid?: string) { return subscribeToCollection<Class>(COLLECTIONS.CLASSES, callback, uid); },
+    onStudentsChange(callback: (students: Student[]) => void, uid?: string) { return subscribeToCollection<Student>(COLLECTIONS.STUDENTS, callback, uid); },
+    onDeletedStudentsChange(callback: (students: Student[]) => void, uid?: string) { return subscribeToCollection<Student>(COLLECTIONS.DELETED_STUDENTS, callback, uid); },
+    onDeletedClassesChange(callback: (classes: Class[]) => void, uid?: string) { return subscribeToCollection<Class>(COLLECTIONS.DELETED_CLASSES, callback, uid); },
+    onAttendanceChange(callback: (attendance: AttendanceRecord[]) => void, uid?: string) { return subscribeToBulkList<AttendanceRecord>('attendance', callback, uid); },
+    onDailyNotesChange(callback: (notes: DailyNote[]) => void, uid?: string) { return subscribeToBulkList<DailyNote>('daily_notes', callback, uid); },
+    onAnecdotesChange(callback: (anecdotes: AnecdotalRecord[]) => void, uid?: string) { return subscribeToCollection<AnecdotalRecord>(COLLECTIONS.ANECDOTES, callback, uid); },
+    onInstrumentsChange(callback: (instruments: EvaluationInstrument[]) => void, uid?: string) { return subscribeToCollection<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS, callback, uid); },
+    onGradesChange(callback: (grades: Grade[]) => void, uid?: string) { return subscribeToBulkList<Grade>('grades', callback, uid); },
+    onRecoveryGradesChange(callback: (grades: RecoveryGrade[]) => void, uid?: string) { return subscribeToBulkList<RecoveryGrade>('recovery_grades', callback, uid); },
+    onCompetenciesChange(callback: (competencies: Competency[]) => void, uid?: string) { return subscribeToCollection<Competency>(COLLECTIONS.USER_COMPETENCIES, callback, uid); },
+    onJournalChange(callback: (entries: JournalEntry[]) => void, uid?: string) { return subscribeToCollection<JournalEntry>(COLLECTIONS.JOURNAL, callback, uid); },
+    onResourcesChange(callback: (resources: Resource[]) => void, uid?: string) { return subscribeToCollection<Resource>(COLLECTIONS.RESOURCES, callback, uid); },
+    onEventsChange(callback: (events: CustomEvent[]) => void, uid?: string) { return subscribeToCollection<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS, callback, uid); },
+    onLessonPlansChange(callback: (plans: LessonPlan[]) => void, uid?: string) { return subscribeToCollection<LessonPlan>(COLLECTIONS.LESSON_PLANS, callback, uid); },
+    onTeacherProfileChange(callback: (profile: TeacherProfileData) => void, userIdOverride?: string) {
+        const uid = userIdOverride || getCurrentUserId();
+        if (!uid) {
+            // If truly no UID, at least provide default to avoid blank screen in some states
+            callback(defaultTeacherProfile);
+            return () => { };
+        }
 
         if (isVirtualMode()) {
             this.getTeacherProfile().then(callback);
             return subscribeToLocal('teacher_profile', callback);
         }
 
+        const handleSnapshotError = (error: any) => {
+            console.error('Vicente Debug: Teacher profile subscription error:', error);
+            // On permission error or any other, provide fallback
+            callback({
+                ...defaultTeacherProfile,
+                name: auth.currentUser?.displayName || (userIdOverride ? 'Usuario' : defaultTeacherProfile.name),
+                email: auth.currentUser?.email || (userIdOverride ? '' : defaultTeacherProfile.email),
+                profilePictureUrl: auth.currentUser?.photoURL || defaultTeacherProfile.profilePictureUrl,
+                _isFallback: true
+            } as any);
+        };
+
+        console.log('Vicente Debug: Subscribing to teacher profile', uid);
         return onSnapshot(doc(db, COLLECTIONS.TEACHER_PROFILE, uid), (snapshot) => {
-            if (snapshot.exists()) callback(snapshot.data() as TeacherProfileData);
-        });
+            console.log('Vicente Debug: Teacher profile snapshot exists:', snapshot.exists());
+            if (snapshot.exists()) {
+                callback(snapshot.data() as TeacherProfileData);
+            } else {
+                // Return default profile for new users to prevent blank screen
+                callback({
+                    ...defaultTeacherProfile,
+                    name: auth.currentUser?.displayName || (userIdOverride ? 'Usuario' : defaultTeacherProfile.name),
+                    email: auth.currentUser?.email || (userIdOverride ? '' : defaultTeacherProfile.email),
+                    profilePictureUrl: auth.currentUser?.photoURL || defaultTeacherProfile.profilePictureUrl,
+                    _isFallback: true
+                } as any);
+            }
+        }, handleSnapshotError);
     }
 };
 

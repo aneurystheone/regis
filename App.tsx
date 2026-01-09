@@ -179,6 +179,7 @@ function App() {
 
   useEffect(() => {
     const unsubscribeAuth = authService.onAuthStateChange((currentUser) => {
+      console.log('Vicente Debug: Auth State Change', currentUser?.email);
       setUser(currentUser);
       setLoadingAuth(false);
     });
@@ -210,8 +211,8 @@ function App() {
     // One-time initialization for static/preference data
     const initializeData = async () => {
       const sidebarState = await api.getIsSidebarCollapsed();
-      const initialFundamental = await api.getFundamentalCompetencies();
-      const initialAIFeatures = await api.getAIFeatures();
+      const initialFundamental = await api.getFundamentalCompetencies(user.id);
+      const initialAIFeatures = await api.getAIFeatures(user.id);
       setIsSidebarCollapsed(sidebarState);
       setFundamentalCompetencies(initialFundamental);
       setAiFeatures(initialAIFeatures);
@@ -235,23 +236,23 @@ function App() {
         } else if (fetchedClasses.length > 0 && !selectedClassId) {
           setSelectedClassId(fetchedClasses[0].id);
         }
-      }),
-      api.onStudentsChange(setStudents),
-      api.onDeletedStudentsChange(setDeletedStudents),
-      api.onDeletedClassesChange(setDeletedClasses),
-      api.onAttendanceChange(setAttendance),
-      api.onDailyNotesChange(setDailyNotes),
-      api.onAnecdotesChange(setAnecdotes),
-      api.onInstrumentsChange(setInstruments),
-      api.onGradesChange(setGrades),
-      api.onRecoveryGradesChange(setRecoveryGrades),
-      api.onCompetenciesChange(setCompetencies),
-      api.onJournalChange(setJournalEntries),
-      api.onResourcesChange(setResources),
-      api.onEventsChange(setCustomEvents),
-      api.onLessonPlansChange(setLessonPlans),
-      api.onTeacherProfileChange(setTeacherProfile),
-      api.onAIFeaturesChange(setAiFeatures)
+      }, user.id),
+      api.onStudentsChange(setStudents, user.id),
+      api.onDeletedStudentsChange(setDeletedStudents, user.id),
+      api.onDeletedClassesChange(setDeletedClasses, user.id),
+      api.onAttendanceChange(setAttendance, user.id),
+      api.onDailyNotesChange(setDailyNotes, user.id),
+      api.onAnecdotesChange(setAnecdotes, user.id),
+      api.onInstrumentsChange(setInstruments, user.id),
+      api.onGradesChange(setGrades, user.id),
+      api.onRecoveryGradesChange(setRecoveryGrades, user.id),
+      api.onCompetenciesChange(setCompetencies, user.id),
+      api.onJournalChange(setJournalEntries, user.id),
+      api.onResourcesChange(setResources, user.id),
+      api.onEventsChange(setCustomEvents, user.id),
+      api.onLessonPlansChange(setLessonPlans, user.id),
+      api.onTeacherProfileChange(setTeacherProfile, user.id),
+      api.onAIFeaturesChange(setAiFeatures, user.id)
     ];
 
     return () => {
@@ -278,14 +279,23 @@ function App() {
     const updateProfile = async () => {
       if (!teacherProfile || !user) return;
 
-      if (teacherProfile.name !== user.name || (user.email && teacherProfile.email !== user.email)) {
+      const isDefault = teacherProfile.name === 'Usuario' && teacherProfile.email === 'usuario@example.com';
+      const needsSync = teacherProfile.name !== user.name || (user.email && teacherProfile.email !== user.email);
+      const isFallback = (teacherProfile as any)._isFallback;
+
+      if (isDefault || needsSync || isFallback) {
+        console.log('Vicente Debug: Syncing Teacher Profile to Firestore', { isDefault, needsSync, isFallback });
         const updatedProfile = {
           ...teacherProfile,
-          name: user.name,
-          email: user.email
+          name: user.name || teacherProfile.name,
+          email: user.email || teacherProfile.email,
+          profilePictureUrl: teacherProfile.profilePictureUrl || user.photoURL || ''
         };
-        await api.setTeacherProfile(updatedProfile);
-        setTeacherProfile(updatedProfile);
+        // Remove internal flag before saving
+        const { _isFallback, ...profileToSave } = updatedProfile as any;
+
+        await api.setTeacherProfile(profileToSave);
+        setTeacherProfile(profileToSave);
       }
     };
     updateProfile();
@@ -682,6 +692,13 @@ function App() {
   };
 
   const renderView = () => {
+    console.log('Vicente Debug: renderView State', {
+      hasProfile: !!teacherProfile,
+      classesCount: classes.length,
+      currentView,
+      selectedClassId
+    });
+
     if (!teacherProfile) return null;
 
     if (classes.length === 0 && !['SETTINGS', 'SETTINGS_APPEARANCE', 'SETTINGS_RECYCLE_BIN', 'TEACHER_PROFILE', 'CLASSES', 'CALENDAR'].includes(currentView)) {

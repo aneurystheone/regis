@@ -165,6 +165,7 @@ export interface TeacherProfileData extends BaseEntity {
   specialization: string;
   experienceYears: number;
   profilePictureUrl: string;
+  _isFallback?: boolean;
 }
 
 export interface JournalEntry {
