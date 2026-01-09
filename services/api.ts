@@ -1030,7 +1030,20 @@ export const api = {
                 } as any);
             }
         }, handleSnapshotError);
-    }
+    },
+
+    async getLatestVersion(): Promise<string> {
+        if (isVirtualMode()) return 'LOCAL';
+        try {
+            const docSnap = await getDoc(doc(db, COLLECTIONS.APP_CONFIG, 'global_config'));
+            if (docSnap.exists()) {
+                return docSnap.data().version || '';
+            }
+        } catch (error) {
+            console.error("Error fetching latest version:", error);
+        }
+        return '';
+    },
 };
 
 if (typeof window !== 'undefined') (window as any).api = api;

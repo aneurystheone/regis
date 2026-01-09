@@ -24,7 +24,8 @@
 
   body {
     background-color: var(--color-brand-bg);
-    @apply text-brand-text font-sans;
+    color: var(--color-brand-text);
+    font-family: var(--font-sans);
   }
 
   html.dark body {

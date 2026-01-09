@@ -34,6 +34,8 @@ import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { ClassDetailModal } from './components/ClassDetailModal';
 import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import { LogoutIcon, TrashIcon } from './components/icons';
+import { VicenteSyncAlert } from './components/VicenteSyncAlert';
+import { UpdatePrompt } from './components/UpdatePrompt';
 
 import { api } from './services/api';
 import { authService } from './services/authService';
@@ -832,8 +834,9 @@ function App() {
           onLogout={() => setIsLogoutConfirmOpen(true)}
           currentView={currentView}
         />
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto relative">
           {renderView()}
+          <UpdatePrompt />
         </div>
       </main>
 
