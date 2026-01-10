@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { api } from '../services/api';
 import { APP_VERSION } from '../types';
@@ -29,17 +29,17 @@ export const UpdatePrompt: React.FC = () => {
         const checkVersion = async () => {
             try {
                 const latest = await api.getLatestVersion();
-                console.log('UpdatePrompt: Version Check', { current: APP_VERSION, latest });
+                console.log('UpdatePrompt: Version Check', {
+                    APP_VERSION,
+                    latest,
+                    mismatch: latest !== APP_VERSION,
+                    needRefresh
+                });
 
                 if (latest && latest !== APP_VERSION) {
-                    // Check if this specific version was already dismissed OR just "updated" in this session
-                    const dismissed = sessionStorage.getItem('regis_update_dismissed');
-                    if (dismissed !== latest) {
-                        setRemoteVersion(latest);
-                        setHasRemoteUpdate(true);
-                    }
+                    setRemoteVersion(latest);
+                    setHasRemoteUpdate(true);
                 } else {
-                    // Versions match, clear any local state
                     setHasRemoteUpdate(false);
                 }
             } catch (err) {
@@ -52,17 +52,28 @@ export const UpdatePrompt: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
+    // Check if we should suppress the prompt due to session dismissal
+    const isSessionDismissed = useMemo(() => {
+        const dismissed = sessionStorage.getItem('regis_update_dismissed');
+        // If we have a remote version, check if IT was dismissed
+        if (remoteVersion && dismissed === remoteVersion) return true;
+        // If we only have a SW update (needRefresh), check if "SW" was dismissed
+        if (needRefresh && dismissed === 'SW_NEED_REFRESH') return true;
+        return false;
+    }, [remoteVersion, needRefresh]);
+
     const handleRefresh = () => {
+        console.log('UpdatePrompt: Handling Refresh Request', { needRefresh, remoteVersion });
+
         if (remoteVersion) {
-            // Mark this version as "dismissed" so if reload doesn't update immediately, 
-            // the user isn't stuck in a prompt loop.
             sessionStorage.setItem('regis_update_dismissed', remoteVersion);
+        } else if (needRefresh) {
+            sessionStorage.setItem('regis_update_dismissed', 'SW_NEED_REFRESH');
         }
 
         if (needRefresh) {
             updateServiceWorker(true);
         } else {
-            // If it was a Firestore-only update or sync issue, we reload.
             window.location.reload();
         }
     };
@@ -70,6 +81,8 @@ export const UpdatePrompt: React.FC = () => {
     const close = () => {
         if (remoteVersion) {
             sessionStorage.setItem('regis_update_dismissed', remoteVersion);
+        } else {
+            sessionStorage.setItem('regis_update_dismissed', 'SW_NEED_REFRESH');
         }
         setOfflineReady(false);
         setNeedRefresh(false);
@@ -77,7 +90,7 @@ export const UpdatePrompt: React.FC = () => {
         setIsDismissed(true);
     };
 
-    if (isDismissed || (!needRefresh && !offlineReady && !hasRemoteUpdate)) return null;
+    if (isDismissed || isSessionDismissed || (!needRefresh && !offlineReady && !hasRemoteUpdate)) return null;
 
     return (
         <div className="fixed bottom-6 right-6 z-[100] w-[90%] max-w-sm animate-fade-in-up">
