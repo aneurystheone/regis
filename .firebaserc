@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "teacher-productivity-kit"
-  }
+  },
+  "targets": {
+    "teacher-productivity-kit": {
+      "hosting": {
+        "app": [
+          "regis-beta"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

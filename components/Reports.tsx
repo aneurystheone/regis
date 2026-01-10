@@ -8,14 +8,30 @@ import { ClassSelector } from './ClassSelector';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const competencyGroups: CompetencyGroup[] = ['G1', 'G2', 'G3', 'G4'];
-const evaluationPeriods: EvaluationPeriod[] = ['P1', 'P2', 'P3', 'P4'];
-
-const groupNames: Record<CompetencyGroup, string> = {
+const secundarioGroups: CompetencyGroup[] = ['G3', 'G1', 'G2', 'G4'];
+const secundarioGroupNames: Record<CompetencyGroup, string> = {
   G1: "Comunicativa",
   G2: "Pensamiento Lógico",
   G3: "Ética y Ciudadana",
   G4: "Científica y Amb."
+};
+
+const primarioGroups: CompetencyGroup[] = ['G3', 'G1', 'G2'];
+const primarioGroupNames: Record<CompetencyGroup, string> = {
+  G1: "Comunicativa",
+  G2: "Pensamiento Lógico",
+  G3: "Ética y Ciudadana",
+  G4: ""
+};
+
+const getGroupConfig = (level: string) => {
+  const isPrimario = level?.toLowerCase().includes('primari');
+  return {
+    groups: isPrimario ? primarioGroups : secundarioGroups,
+    groupNames: isPrimario ? primarioGroupNames : secundarioGroupNames,
+    isPrimario,
+    mfa: isPrimario ? 65 : 70
+  };
 };
 
 interface ReportsProps {
@@ -148,6 +164,8 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
       doc.text(selectedClass?.schoolYear || "", 132, 52);
     };
 
+    const evaluationPeriods: EvaluationPeriod[] = ['P1', 'P2', 'P3', 'P4'];
+
     const addFooter = (doc: any) => {
       const pageCount = doc.internal.getNumberOfPages();
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -162,6 +180,8 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
     };
 
     const generateDetailedGradeSheetPDF = (doc: any, classInfo: Class) => {
+      const { groups: competencyGroups, groupNames, isPrimario, mfa } = getGroupConfig(classInfo.level || 'Nivel Primario');
+
       drawOfficialHeader(doc, "REGISTRO DE CALIFICACIONES");
 
       // Complex Table Header Structure
@@ -173,19 +193,29 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
 
       const subHead: any[] = [];
 
-      // Build Header Levels
+      // Build Header Levels: Individual Periods
       competencyGroups.forEach(g => {
         head[0].push({
           content: groupNames[g],
-          colSpan: 5, // P1, P2, P3, P4, CP
+          colSpan: 8, // P1, RP1, P2, RP2, P3, RP3, P4, RP4
           styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240], textColor: [0, 0, 0] }
         });
 
-        // Subheaders for periods
+        // Subheaders for periods and recoveries
         evaluationPeriods.forEach(p => {
-          subHead.push({ content: p, styles: { halign: 'center', fontSize: 7 } });
+          subHead.push({ content: p, styles: { halign: 'center', fontSize: 6 } });
+          subHead.push({ content: `RP${p.slice(1)}`, styles: { halign: 'center', fontSize: 5, textColor: [100, 100, 100] } });
         });
-        subHead.push({ content: 'C.P.', styles: { halign: 'center', fontStyle: 'bold', fillColor: [230, 230, 230] } }); // Calif. Parcial / Competencia
+      });
+
+      // Trailing CP columns
+      head[0].push({
+        content: 'Promedios (CP)',
+        colSpan: competencyGroups.length,
+        styles: { halign: 'center', fontStyle: 'bold', fillColor: [220, 220, 220] }
+      });
+      competencyGroups.forEach(g => {
+        subHead.push({ content: `CP${g.slice(1)}`, styles: { halign: 'center', fontSize: 6, fontStyle: 'bold' } });
       });
 
       head[0].push({ content: 'C.F.', rowSpan: 2, styles: { valign: 'middle', halign: 'center', fillColor: [200, 200, 200] } }); // Final Grade
@@ -195,92 +225,98 @@ export const Reports: React.FC<ReportsProps> = ({ students, classes, attendance,
           `${student.orderNumber || index + 1}. ${student.name}`
         ];
 
-        let totalCP = 0;
-        let validCPCount = 0;
+        const studentCPs: number[] = [];
 
         competencyGroups.forEach(group => {
           const groupCompetencyIds = competencies.filter(c => {
             const fc = fundamentalCompetencies.find(f => f.id === c.fundamentalId);
+            if (isPrimario && fc?.group === 'G4') return group === 'G2'; // Merge G4 into G2 for Primario
             return fc?.group === group && c.classId === classInfo.id;
           }).map(c => c.id);
 
-          // Calculate average of 4 periods for this group
-          const periodScores = evaluationPeriods.map(period => {
+          const periodScoresByGroup: (number | null)[] = [];
+
+          evaluationPeriods.forEach(period => {
             const periodInstruments = instruments.filter(i => i.classId === classInfo.id && i.period === period && i.competencyIds.some(id => groupCompetencyIds.includes(id)));
             const relevantGrades = grades.filter(g => g.studentId === student.id && periodInstruments.some(i => i.id === g.instrumentId) && g.score !== null);
 
-            // Recovery
             const recovery = recoveryGrades.find(r => r.studentId === student.id && r.period === period && r.competencyGroup === group);
 
-            if (relevantGrades.length === 0) {
-              // If only recovery exists, return it, otherwise null
-              return recovery ? recovery.score : null;
+            let rawScore: number | null = null;
+            if (relevantGrades.length > 0) {
+              const total = relevantGrades.reduce((acc, curr) => acc + (curr.score || 0), 0);
+              const totalPossible = relevantGrades.reduce((acc, curr) => {
+                const inst = instruments.find(i => i.id === curr.instrumentId);
+                return acc + (inst?.totalPoints || 0);
+              }, 0);
+              rawScore = totalPossible > 0 ? Math.round((total / totalPossible) * 100) : null;
             }
 
-            const total = relevantGrades.reduce((acc, curr) => acc + (curr.score || 0), 0);
-            const totalPossible = relevantGrades.reduce((acc, curr) => {
-              const inst = instruments.find(i => i.id === curr.instrumentId);
-              return acc + (inst?.totalPoints || 0);
-            }, 0);
+            // MFA Logic: if raw < mfa, use recovery if available
+            let effectiveScore = rawScore;
+            if (recovery && (rawScore === null || rawScore < mfa)) {
+              effectiveScore = recovery.score;
+            }
 
-            const rawScore = totalPossible > 0 ? Math.round((total / totalPossible) * 100) : null;
+            row.push(rawScore !== null ? rawScore.toString() : '-');
+            row.push(recovery ? recovery.score.toString() : '-');
 
-            // Effective Score: If Recovery > Raw, use Recovery
-            return recovery && (rawScore === null || recovery.score > rawScore) ? recovery.score : rawScore;
+            periodScoresByGroup.push(effectiveScore);
           });
 
-          // Push Period Scores to row
-          periodScores.forEach(score => {
-            row.push(score !== null ? score.toString() : '-');
-          });
-
-          // Calculate CP (Promedio de Competencia)
-          const validScores = periodScores.filter(s => s !== null) as number[];
-          if (validScores.length > 0) {
-            const avg = Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length);
-            row.push({ content: avg.toString(), styles: { fontStyle: 'bold', fillColor: [245, 245, 245] } });
-            totalCP += avg;
-            validCPCount++;
+          // Calculate CP for this group
+          const validScores = periodScoresByGroup.filter(s => s !== null) as number[];
+          if (validScores.length === evaluationPeriods.length) {
+            const cp = Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length);
+            studentCPs.push(cp);
           } else {
-            row.push('-');
+            // Partially complete? We could still show average or '-'
+            const cp = validScores.length > 0 ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) : null;
+            if (cp !== null) studentCPs.push(cp);
           }
         });
 
+        // Push CP values to row
+        studentCPs.forEach(cp => {
+          row.push({ content: cp.toString(), styles: { fontStyle: 'bold', fillColor: [245, 245, 245] } });
+        });
+        // Pad if some groups have no scores
+        for (let i = studentCPs.length; i < competencyGroups.length; i++) {
+          row.push('-');
+        }
+
         // Calculate CF (Calificación Final)
-        const finalAvg = validCPCount > 0 ? Math.round(totalCP / validCPCount) : null;
+        const finalAvg = studentCPs.length === competencyGroups.length ? Math.round(studentCPs.reduce((a, b) => a + b, 0) / studentCPs.length) : null;
         row.push({
           content: finalAvg !== null ? finalAvg.toString() : '-',
           styles: {
             fontStyle: 'bold',
             fillColor: [230, 230, 230],
-            textColor: finalAvg !== null && finalAvg < 70 ? [200, 0, 0] : [0, 0, 0]
+            textColor: finalAvg !== null && finalAvg < mfa ? [200, 0, 0] : [0, 0, 0]
           }
         });
 
         return row;
       });
 
-      // Combine headers
-      const finalBody = [subHead, ...tableData];
-
       autoTable(doc, {
-        head: head,
-        body: finalBody, // Note: autotable treats first rows as data if simpler, but here we manually construct nested structure roughly or use generic body
+        head: [head[0], subHead],
+        body: tableData,
         startY: 60,
         styles: {
-          fontSize: 7,
-          cellPadding: 1.5,
-          lineColor: [100, 100, 100],
-          lineWidth: 0.1,
+          fontSize: 5, // Slightly smaller to be safe
+          cellPadding: 0.6,
+          lineColor: [150, 150, 150],
+          lineWidth: 0.05,
         },
         headStyles: {
           fillColor: [255, 255, 255],
           textColor: [0, 0, 0],
-          lineWidth: 0.1,
-          lineColor: [100, 100, 100]
+          lineWidth: 0.05,
+          lineColor: [150, 150, 150]
         },
         columnStyles: {
-          0: { cellWidth: 45 } // Student Name width
+          0: { cellWidth: 35 } // Student Name width
         }
       });
       addFooter(doc);
