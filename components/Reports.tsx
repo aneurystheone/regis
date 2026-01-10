@@ -8,7 +8,7 @@ import { ClassSelector } from './ClassSelector';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const secundarioGroups: CompetencyGroup[] = ['G3', 'G1', 'G2', 'G4'];
+const secundarioGroups: CompetencyGroup[] = ['G1', 'G2', 'G3', 'G4'];
 const secundarioGroupNames: Record<CompetencyGroup, string> = {
   G1: "Comunicativa",
   G2: "Pensamiento Lógico",
@@ -16,7 +16,7 @@ const secundarioGroupNames: Record<CompetencyGroup, string> = {
   G4: "Científica y Amb."
 };
 
-const primarioGroups: CompetencyGroup[] = ['G3', 'G1', 'G2'];
+const primarioGroups: CompetencyGroup[] = ['G1', 'G2', 'G3'];
 const primarioGroupNames: Record<CompetencyGroup, string> = {
   G1: "Comunicativa",
   G2: "Pensamiento Lógico",

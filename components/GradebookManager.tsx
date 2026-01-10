@@ -36,9 +36,9 @@ const evaluationPeriods: EvaluationPeriod[] = ['P1', 'P2', 'P3', 'P4'];
 const secundarioGroups: CompetencyGroup[] = ['G1', 'G2', 'G3', 'G4'];
 const secundarioGroupNames: Record<CompetencyGroup, string> = {
     G1: "Comunicativa",
-    G2: "Lógico/Crítico",
-    G3: "Ética/Ciudadana",
-    G4: "Científica/Salud"
+    G2: "Pensamiento Lógico",
+    G3: "Ética y Ciudadana",
+    G4: "Científica y Amb.",
 };
 
 // Primario: 3 groups (mapping G1, G2+G4, G3)
