@@ -22,37 +22,62 @@ export const UpdatePrompt: React.FC = () => {
 
     const [hasRemoteUpdate, setHasRemoteUpdate] = useState(false);
     const [remoteVersion, setRemoteVersion] = useState<string>('');
+    const [isDismissed, setIsDismissed] = useState(false);
 
     useEffect(() => {
         // Only check for remote version periodically or on mount
         const checkVersion = async () => {
-            const latest = await api.getLatestVersion();
-            if (latest && latest !== APP_VERSION) {
-                setRemoteVersion(latest);
-                setHasRemoteUpdate(true);
+            try {
+                const latest = await api.getLatestVersion();
+                console.log('UpdatePrompt: Version Check', { current: APP_VERSION, latest });
+
+                if (latest && latest !== APP_VERSION) {
+                    // Check if this specific version was already dismissed OR just "updated" in this session
+                    const dismissed = sessionStorage.getItem('regis_update_dismissed');
+                    if (dismissed !== latest) {
+                        setRemoteVersion(latest);
+                        setHasRemoteUpdate(true);
+                    }
+                } else {
+                    // Versions match, clear any local state
+                    setHasRemoteUpdate(false);
+                }
+            } catch (err) {
+                console.error("UpdatePrompt: Failed to check version", err);
             }
         };
 
         checkVersion();
-        const interval = setInterval(checkVersion, 1000 * 60 * 60); // Check every hour
+        const interval = setInterval(checkVersion, 1000 * 60 * 15); // Check every 15 mins
         return () => clearInterval(interval);
     }, []);
 
     const handleRefresh = () => {
+        if (remoteVersion) {
+            // Mark this version as "dismissed" so if reload doesn't update immediately, 
+            // the user isn't stuck in a prompt loop.
+            sessionStorage.setItem('regis_update_dismissed', remoteVersion);
+        }
+
         if (needRefresh) {
             updateServiceWorker(true);
         } else {
+            // If it was a Firestore-only update or sync issue, we reload.
             window.location.reload();
         }
     };
 
     const close = () => {
+        if (remoteVersion) {
+            sessionStorage.setItem('regis_update_dismissed', remoteVersion);
+        }
         setOfflineReady(false);
         setNeedRefresh(false);
         setHasRemoteUpdate(false);
+        setIsDismissed(true);
     };
 
-    if (!needRefresh && !offlineReady && !hasRemoteUpdate) return null;
+    if (isDismissed || (!needRefresh && !offlineReady && !hasRemoteUpdate)) return null;
 
     return (
         <div className="fixed bottom-6 right-6 z-[100] w-[90%] max-w-sm animate-fade-in-up">

@@ -58,11 +58,17 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // App Configuration (Global AI Features)
+    // App Configuration
     match /app_config/global_ai_features {
       // Everyone can read features (to respect settings)
       allow read: if true; 
       // Only admins can change them
+      allow write: if isSignedIn() && isAdmin();
+    }
+
+    match /app_config/global_config {
+      // Version and build info should be public so users can be prompted to update
+      allow read: if true;
       allow write: if isSignedIn() && isAdmin();
     }
   }
