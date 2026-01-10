@@ -5,8 +5,11 @@
   "targets": {
     "teacher-productivity-kit": {
       "hosting": {
-        "app": [
-          "regis-beta"
+        "beta": [
+          "beta-regis"
+        ],
+        "pro": [
+          "pro-regis"
         ]
       }
     }
