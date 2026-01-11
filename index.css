@@ -90,3 +90,12 @@
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
+
+/* ReCAPTCHA Visibility Control */
+.grecaptcha-badge {
+  visibility: hidden;
+}
+
+body.show-recaptcha .grecaptcha-badge {
+  visibility: visible;
+}

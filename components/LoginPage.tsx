@@ -13,6 +13,14 @@ interface LoginPageProps {
 
 export const LoginPage: React.FC<LoginPageProps> = () => {
   const { executeRecaptcha } = useGoogleReCaptcha();
+
+  React.useEffect(() => {
+    document.body.classList.add('show-recaptcha');
+    return () => {
+      document.body.classList.remove('show-recaptcha');
+    };
+  }, []);
+
   const [isLoginView, setIsLoginView] = useState(true);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
