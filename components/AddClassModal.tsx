@@ -172,21 +172,22 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label htmlFor="class-grade" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-                Grado
-              </label>
-              <select
-                id="class-grade"
-                value={grade}
-                onChange={(e) => setGrade(e.target.value)}
-                className={inputBaseClasses}
-                required
-              >
-                {grades.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
+          <div>
+            <label htmlFor="class-grade" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+              Grado
+            </label>
+            <select
+              id="class-grade"
+              value={grade}
+              onChange={(e) => setGrade(e.target.value)}
+              className={inputBaseClasses}
+              required
+            >
+              {grades.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="class-section" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
                 Sección

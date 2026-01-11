@@ -487,6 +487,22 @@ export const api = {
         }
         return { deletedClasses: newDeleted };
     },
+    async permanentlyDeleteClasses(classIds: string[]): Promise<{ deletedClasses: Class[] }> {
+        const currentDeleted = getLocal<Class>(COLLECTIONS.DELETED_CLASSES);
+        const newDeleted = currentDeleted.filter(c => !classIds.includes(c.id));
+        setLocal(COLLECTIONS.DELETED_CLASSES, newDeleted);
+
+        if (!isVirtualMode()) {
+            const batch = writeBatch(db);
+            classIds.forEach(id => {
+                batch.delete(doc(db, COLLECTIONS.DELETED_CLASSES, id));
+            });
+            try { await batch.commit(); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify(true);
+            }
+        }
+        return { deletedClasses: newDeleted };
+    },
 
     async getStudents(): Promise<Student[]> { return fetchCollection<Student>(COLLECTIONS.STUDENTS); },
     async addStudent(studentData: Omit<Student, 'id'>): Promise<Student[]> {
@@ -623,8 +639,24 @@ export const api = {
             deletedStudents: newDeleted,
             attendance: await this.getAttendance(),
             anecdotes: await this.getAnecdotes(),
-            grades: await this.getGrades()
+            grades: await this.getGrades() // In a real app we would cleanup these too, but for now we just return them
         };
+    },
+    async permanentlyDeleteStudents(studentIds: string[]): Promise<{ deletedStudents: Student[] }> {
+        const currentDeleted = getLocal<Student>(COLLECTIONS.DELETED_STUDENTS);
+        const newDeleted = currentDeleted.filter(s => !studentIds.includes(s.id));
+        setLocal(COLLECTIONS.DELETED_STUDENTS, newDeleted);
+
+        if (!isVirtualMode()) {
+            const batch = writeBatch(db);
+            studentIds.forEach(id => {
+                batch.delete(doc(db, COLLECTIONS.DELETED_STUDENTS, id));
+            });
+            try { await batch.commit(); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify(true);
+            }
+        }
+        return { deletedStudents: newDeleted };
     },
 
     async getAttendance(): Promise<AttendanceRecord[]> { return fetchBulkList('attendance', []); },

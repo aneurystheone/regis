@@ -209,7 +209,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                             </div>
                         </div>
 
-                        <div className="md:hidden fixed bottom-4 left-4 right-4 z-40 bg-slate-900/90 dark:bg-slate-800/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50 flex flex-col gap-4 animate-slide-up">
+                        <div className="md:hidden fixed bottom-24 left-4 right-4 z-40 bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50 flex flex-col gap-4 animate-slide-up">
                             <div className="flex justify-between items-center border-b border-slate-700 pb-3">
                                 <span className="font-bold text-lg">{selectedStudentIds.length} seleccionados</span>
                                 <button onClick={cancelSelectionMode} className="bg-slate-700 p-2 rounded-full hover:bg-slate-600">
@@ -217,15 +217,25 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                                 </button>
                             </div>
                             <div className="flex justify-between gap-2">
-                                <button onClick={handleBulkEdit} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl hover:bg-white/10">
-                                    <PencilIcon className="w-6 h-6" />
-                                    <span className="text-xs font-medium">Editar</span>
-                                </button>
-                                <button onClick={handleBulkMove} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl hover:bg-white/10">
+                                {selectedStudentIds.length === 1 && (
+                                    <button
+                                        onClick={() => {
+                                            const student = students.find(s => s.id === selectedStudentIds[0]);
+                                            if (student) onViewProfile(student);
+                                            cancelSelectionMode();
+                                        }}
+                                        className="flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl hover:bg-white/10"
+                                    >
+                                        <StudentsIcon className="w-6 h-6" />
+                                        <span className="text-xs font-medium">Perfil</span>
+                                    </button>
+                                )}
+
+                                <button onClick={() => { handleBulkMove(); cancelSelectionMode(); }} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl hover:bg-white/10">
                                     <SwitchHorizontalIcon className="w-6 h-6" />
                                     <span className="text-xs font-medium">Mover</span>
                                 </button>
-                                <button onClick={handleBulkMoveToBin} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl hover:bg-red-500/20 text-red-400">
+                                <button onClick={() => { handleBulkMoveToBin(); cancelSelectionMode(); }} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl hover:bg-red-500/20 text-red-400">
                                     <TrashIcon className="w-6 h-6" />
                                     <span className="text-xs font-medium">Borrar</span>
                                 </button>
@@ -394,20 +404,6 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                                         <p className="text-sm text-slate-500 dark:text-slate-400 truncate">ID: {student.id}</p>
                                     </div>
                                 </div>
-
-                                {!isSelectionMode && (
-                                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center" onClick={(e) => e.stopPropagation()}>
-                                        <span className="text-xs font-medium text-slate-400 dark:text-slate-500">Acciones</span>
-                                        <div className="flex items-center gap-1">
-                                            <button onClick={() => onEditStudentClick(student)} className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 active:bg-slate-100 dark:active:bg-slate-700 rounded-lg transition-colors">
-                                                <PencilIcon className="w-5 h-5" />
-                                            </button>
-                                            <button onClick={() => onMoveStudentClick(student)} className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 active:bg-slate-100 dark:active:bg-slate-700 rounded-lg transition-colors">
-                                                <SwitchHorizontalIcon className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         );
                     })}
@@ -435,7 +431,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
             </div>
 
             {!isSelectionMode && (
-                <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end pointer-events-none">
+                <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end pointer-events-none mb-20 md:mb-0">
                     <div
                         className={`flex flex-col items-end space-y-4 mb-4 transition-all duration-300 ease-in-out ${isFabOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-10 pointer-events-none'
                             }`}

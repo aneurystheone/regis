@@ -173,14 +173,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
 
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2">
+        <div className="flex-1 w-full md:w-auto">
+          <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2 mb-4">
             Hola, {userName.split(' ')[0]} <span className="text-2xl">👋</span>
           </h1>
-          <div className="flex items-center gap-2 mt-2 text-slate-500 dark:text-slate-400 font-bold bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm inline-flex">
-            <span>{selectedClass ? `${selectedClass.grade} ${selectedClass.section}` : 'N/A'}</span>
-            <span>·</span>
-            <span className="text-brand-primary">{selectedClass ? selectedClass.name : 'Selecciona una clase'}</span>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+            {/* Class Selector */}
+            <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-bold bg-white dark:bg-slate-800 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-full">
+              <span className="text-lg">{selectedClass ? `${selectedClass.grade} ${selectedClass.section}` : 'N/A'}</span>
+              <span className="mx-2 text-slate-300">|</span>
+              <span className="text-brand-primary truncate">{selectedClass ? selectedClass.name : 'Selecciona una clase'}</span>
+            </div>
+
+            {/* Alerts Summary Widget (Moved from bottom) */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-xl p-3 flex items-center gap-3 w-full">
+              <div className="bg-amber-100 dark:bg-amber-900/50 p-2 rounded-lg text-amber-600 dark:text-amber-400">
+                <ExclamationIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h5 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Atención hoy</h5>
+                <p className="text-xs text-slate-500 dark:text-slate-400">2 estudiantes con incidencias</p>
+              </div>
+            </div>
+
+            {/* Recent Changes Widget (Moved from bottom) */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-3 flex items-center gap-3 w-full">
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg text-emerald-600 dark:text-emerald-400">
+                <TrendingUpIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h5 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Últimos cambios</h5>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Asistencia registrada hoy</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -190,41 +216,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
       </div>
 
       {/* STATS CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard
           icon={<UserGroupIcon className="w-6 h-6" />}
           label="Estudiantes"
           subtext="activos"
           value={classStudents.length}
           colorClass="text-emerald-600"
-          iconBgClass="bg-emerald-100"
+          iconBgClass="bg-emerald-100 dark:bg-emerald-900/30"
           onClick={() => onNavigate('STUDENTS')}
         />
         <StatCard
           icon={<ClipboardCheckIcon className="w-6 h-6" />}
-          label="Promedio"
-          subtext="mensual"
+          label="Asistencia"
+          subtext="promedio"
           value={`${attendanceAvg}%`}
           colorClass="text-blue-600"
-          iconBgClass="bg-blue-100"
+          iconBgClass="bg-blue-100 dark:bg-blue-900/30"
           onClick={() => onNavigate('ATTENDANCE')}
         />
         <StatCard
           icon={<StarIcon className="w-6 h-6" />}
-          label="Calificación"
-          subtext="media"
+          label="Calificaciones"
+          subtext="promedio"
           value={averageGrade > 0 ? averageGrade : '-'}
-          colorClass="text-emerald-600"
-          iconBgClass="bg-emerald-100" // Mockup uses green here too
+          colorClass="text-violet-600"
+          iconBgClass="bg-violet-100 dark:bg-violet-900/30"
           onClick={() => onNavigate('GRADEBOOK_GRADES')}
-        />
-        <StatCard
-          icon={<ExclamationIcon className="w-6 h-6" />}
-          label="Sin calificar"
-          value={3} // Mock value to match picture
-          colorClass="text-amber-600"
-          iconBgClass="bg-amber-100"
-          onClick={() => onNavigate('GRADEBOOK_INSTRUMENTS')}
         />
       </div>
 
@@ -259,45 +277,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ userName, classes, student
       {/* WIDGETS GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-        {/* COLUMN 1: ALERTS */}
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 min-h-[320px]">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              <span className="text-xl">🔔</span> Atención hoy
-            </h3>
-            <span className="text-slate-400 text-2xl mb-2">...</span>
-          </div>
+        {/* COLUMN 1 & 2: REPLACED BY HEADER WIDGETS, BUT KEEPING STRUCTURE FOR POTENTIAL CONTENT OR REMOVE IF UNUSED? 
+            The user asked to arrange others in 1x3 layout (Estudiantes, Asistencia, Calificaciones) which I assume meant the KPIs.
+            The user also asked to "fix atención hoy, ultimos cambios and class selector under teachers greeting".
+            So the bottom widgets might be redundant now if moved to header? 
+            However, the header widgets are small summaries. Maybe we can keep a dedicated "Activity Feed" here or remove it to "improve usability" and reduce clutter.
+            Let's keep the "Vicente" column if active, and maybe simplify the others or just remove them if they are duplicates.
+            Actually, "Atención hoy" and "Últimos cambios" are specifically requested to be UNDER the greeting. I did that.
+            So I should probably remove these columns to avoid duplication and clutter.
+        */}
 
-          <div className="space-y-4">
-            <AlertItem
-              title="2 estudiantes tienen"
-              description="3 ausencias consecutivas"
-              type="warning"
-            />
-            <AlertItem
-              title="Faltan notas del periodo 2"
-              description="Matemática"
-              type="warning"
-              onAction={() => onNavigate('GRADEBOOK_INSTRUMENTS')}
-            />
-          </div>
-        </div>
-
-        {/* COLUMN 2: TIMELINE */}
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 min-h-[320px]">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-black text-slate-800 dark:text-slate-100">
-              Últimos cambios
-            </h3>
-            <span className="text-slate-400 text-2xl mb-2">...</span>
-          </div>
-
-          <div className="divide-y divide-slate-50 dark:divide-slate-700">
-            {recentChanges.map((item, idx) => (
-              <WidgetChangeItem key={idx} {...item} />
-            ))}
-          </div>
-        </div>
 
         {/* COLUMN 3: VICENTE */}
         {aiFeatures.vicenteAssistant && (

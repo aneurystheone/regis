@@ -173,10 +173,14 @@ function App() {
 
   const [studentsToMoveToBin, setStudentsToMoveToBin] = useState<Student[]>([]);
   const [studentToPermanentlyDelete, setStudentToPermanentlyDelete] = useState<Student | null>(null);
+  const [studentsToPermanentlyDeleteBulk, setStudentsToPermanentlyDeleteBulk] = useState<Student[]>([]);
 
   const [deletedClasses, setDeletedClasses] = useState<Class[]>([]);
   const [classToMoveToBin, setClassToMoveToBin] = useState<Class | null>(null);
   const [classToPermanentlyDelete, setClassToPermanentlyDelete] = useState<Class | null>(null);
+  const [classesToPermanentlyDeleteBulk, setClassesToPermanentlyDeleteBulk] = useState<Class[]>([]);
+
+  const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
 
 
   // --- Data Subscription Logic ---
@@ -387,6 +391,13 @@ function App() {
     setClassToPermanentlyDelete(null);
   };
 
+  const handlePermanentlyDeleteClassesBulk = async () => {
+    if (classesToPermanentlyDeleteBulk.length === 0) return;
+    const { deletedClasses: updatedDeleted } = await api.permanentlyDeleteClasses(classesToPermanentlyDeleteBulk.map(c => c.id));
+    setDeletedClasses(updatedDeleted);
+    setClassesToPermanentlyDeleteBulk([]);
+  };
+
   // Student Handlers
   const handleAddStudent = async (studentData: Omit<Student, 'id' | 'classId'>) => {
     if (!classIdForNewStudent) return;
@@ -477,6 +488,13 @@ function App() {
     setAnecdotes(uan);
     setGrades(ug);
     setStudentToPermanentlyDelete(null);
+  };
+
+  const handlePermanentlyDeleteStudentsBulk = async () => {
+    if (studentsToPermanentlyDeleteBulk.length === 0) return;
+    const { deletedStudents: ud } = await api.permanentlyDeleteStudents(studentsToPermanentlyDeleteBulk.map(s => s.id));
+    setDeletedStudents(ud);
+    setStudentsToPermanentlyDeleteBulk([]);
   };
 
   // Anecdote Handlers
@@ -816,7 +834,17 @@ function App() {
           onPermanentDeleteClass={(c) => setClassToPermanentlyDelete(c)}
         />;
       case 'SETTINGS_RECYCLE_BIN':
-        return <RecycleBin deletedStudents={deletedStudents} classes={classes} onRestore={handleRestoreStudent} onPermanentDelete={(s) => setStudentToPermanentlyDelete(s)} deletedClasses={deletedClasses} onRestoreClass={handleRestoreClass} onPermanentDeleteClass={(c) => setClassToPermanentlyDelete(c)} />;
+        return <RecycleBin
+          deletedStudents={deletedStudents}
+          classes={classes}
+          onRestore={handleRestoreStudent}
+          onPermanentDelete={(s) => setStudentToPermanentlyDelete(s)}
+          onPermanentDeleteBulk={(students) => setStudentsToPermanentlyDeleteBulk(students)}
+          deletedClasses={deletedClasses}
+          onRestoreClass={handleRestoreClass}
+          onPermanentDeleteClass={(c) => setClassToPermanentlyDelete(c)}
+          onPermanentDeleteClassesBulk={(classes) => setClassesToPermanentlyDeleteBulk(classes)}
+        />;
       default:
         return null;
     }
@@ -887,6 +915,9 @@ function App() {
 
       <ConfirmDeleteModal isOpen={!!classToMoveToBin} onClose={() => setClassToMoveToBin(null)} onConfirm={handleMoveClassToBin} title="Mover a Papelera" message={`¿Está seguro de que desea mover la clase "${classToMoveToBin?.name}" a la papelera?`} confirmButtonText="Mover" />
       <ConfirmDeleteModal isOpen={!!classToPermanentlyDelete} onClose={() => setClassToPermanentlyDelete(null)} onConfirm={handlePermanentlyDeleteClass} title="Eliminar Permanentemente" message={`¿Está seguro de que desea eliminar permanentemente la clase "${classToPermanentlyDelete?.name}"? Esta acción no se puede deshacer.`} />
+
+      <ConfirmDeleteModal isOpen={studentsToPermanentlyDeleteBulk.length > 0} onClose={() => setStudentsToPermanentlyDeleteBulk([])} onConfirm={handlePermanentlyDeleteStudentsBulk} title="Eliminar Permanentemente" message={`¿Está seguro de que desea eliminar permanentemente ${studentsToPermanentlyDeleteBulk.length} estudiante(s)? Esta acción no se puede deshacer.`} />
+      <ConfirmDeleteModal isOpen={classesToPermanentlyDeleteBulk.length > 0} onClose={() => setClassesToPermanentlyDeleteBulk([])} onConfirm={handlePermanentlyDeleteClassesBulk} title="Eliminar Permanentemente" message={`¿Está seguro de que desea eliminar permanentemente ${classesToPermanentlyDeleteBulk.length} curso(s)? Esta acción no se puede deshacer.`} />
 
       <ConfirmDeleteModal
         isOpen={isLogoutConfirmOpen}

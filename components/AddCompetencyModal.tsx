@@ -227,10 +227,10 @@ export const AddCompetencyModal: React.FC<AddCompetencyModalProps> = ({ isOpen, 
                                     <div className="text-center py-8 text-slate-500 dark:text-slate-400">
                                         <p className="font-semibold">No hay competencias disponibles.</p>
                                         {fetchError ? (
-                                            <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded text-sm text-yellow-800 dark:text-yellow-200 flex flex-col gap-1 items-center">
+                                            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/30 rounded text-sm text-blue-800 dark:text-blue-200 flex flex-col gap-1 items-center">
                                                 <ExclamationIcon className="w-5 h-5" />
-                                                <span>No se encontró currículo para <strong>{currentClass?.grade} de {currentClass?.name}</strong>.</span>
-                                                <span className="text-xs">Asegúrese de haber ejecutado la "Migración de Datos" en Configuración después de la última actualización.</span>
+                                                <span className="font-bold">¡Próximamente!</span>
+                                                <span className="text-center">Estamos trabajando para añadir el currículo de <strong>{currentClass?.grade}</strong>.</span>
                                             </div>
                                         ) : (
                                             <p className="text-sm">Es posible que ya haya importado todas las competencias disponibles para esta asignatura.</p>
