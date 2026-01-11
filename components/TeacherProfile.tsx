@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import type { TeacherProfileData, Class, Student, JournalEntry, Resource } from '../types';
 import { BookOpenIcon, PencilSquareIcon, LinkIcon, PlusIcon, UserGroupIcon, LogoutIcon, CameraIcon } from './icons';
+import { Avatar } from './Avatar';
 import { uploadFile } from '../services/storageService';
 import { authService } from '../services/authService';
 
@@ -104,9 +105,10 @@ export const TeacherProfile: React.FC<TeacherProfileProps> = ({ profile, classes
                 <div className="lg:col-span-1 space-y-6">
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md text-center">
                         <div className="relative inline-block mx-auto mb-4 group">
-                            <img
-                                src={profile.profilePictureUrl}
-                                alt={profile.name}
+                            <Avatar
+                                name={profile.name}
+                                src={profile.profilePictureUrl || undefined}
+                                size="xl"
                                 className={`w-32 h-32 rounded-full object-cover border-4 border-indigo-200 dark:border-indigo-700 shadow-lg ${isUploadingPhoto ? 'opacity-50' : ''}`}
                             />
                             <label

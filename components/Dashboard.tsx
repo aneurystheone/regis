@@ -38,7 +38,14 @@ const StatCard: React.FC<{
   onClick?: () => void
 }> = ({ icon, label, value, subtext, colorClass, iconBgClass, onClick }) => (
   <div
+    role="button"
+    tabIndex={0}
     onClick={onClick}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        onClick?.();
+      }
+    }}
     className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col justify-between h-32 cursor-pointer hover:shadow-md transition-shadow"
   >
     <div className="flex items-start justify-between">

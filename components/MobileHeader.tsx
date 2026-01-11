@@ -12,6 +12,7 @@ interface MobileHeaderProps {
     onLogout: () => void;
     currentView: View;
     title: string;
+    connectionStatus?: 'online' | 'offline';
 }
 
 export const MobileHeader: React.FC<MobileHeaderProps> = ({
@@ -21,7 +22,8 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     onNavigate,
     onLogout,
     currentView,
-    title
+    title,
+    connectionStatus
 }) => {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const isDashboard = currentView === 'DASHBOARD';
@@ -79,6 +81,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                                 src={userAvatar}
                                 size="sm"
                                 className="rounded-full border-2 border-slate-100 dark:border-slate-600"
+                                status={connectionStatus}
                             />
                         </button>
 

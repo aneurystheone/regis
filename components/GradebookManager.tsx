@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { Student, Class, Competency, EvaluationInstrument, Grade, EvaluationPeriod, FundamentalCompetency, CompetencyGroup, RecoveryGrade } from '../types';
 import { PlusIcon, AcademicCapIcon, BoltIcon, PencilIcon, DocumentTextIcon, ChevronDownIcon, StarIcon, UserGroupIcon, TrashIcon, DocumentDuplicateIcon } from './icons';
 import { ClassSelector } from './ClassSelector';
+import { Avatar } from './Avatar';
 
 interface GradebookManagerProps {
     students: Student[];
@@ -496,8 +497,8 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
                                             <tr key={student.id} className={idx % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-slate-50/50 dark:bg-slate-800/50'}>
                                                 <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-900 dark:text-slate-100 sticky left-0 z-10 bg-inherit border-r border-slate-200 dark:border-slate-700 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.05)]">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0">
-                                                            <img src={student.avatar} alt="" className="w-full h-full object-cover" />
+                                                        <div className="w-8 h-8 flex-shrink-0">
+                                                            <Avatar name={student.name} src={student.avatar} size="sm" />
                                                         </div>
                                                         <span className="truncate">{student.name}</span>
                                                     </div>
@@ -582,8 +583,8 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
                                             <tr key={student.id} className={idx % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-slate-50/50 dark:bg-slate-800/50'}>
                                                 <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-900 dark:text-slate-100 sticky left-0 z-10 bg-inherit border-r border-slate-200 dark:border-slate-700 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.05)]">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0">
-                                                            <img src={student.avatar} alt="" className="w-full h-full object-cover" />
+                                                        <div className="w-8 h-8 flex-shrink-0">
+                                                            <Avatar name={student.name} src={student.avatar} size="sm" />
                                                         </div>
                                                         <span className="truncate">{student.name}</span>
                                                     </div>
@@ -658,7 +659,7 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
                             <div key={student.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-all duration-200">
                                 <button onClick={() => setExpandedStudentId(isExpanded ? null : student.id)} className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-800/50 active:bg-slate-100 dark:active:bg-slate-700">
                                     <div className="flex items-center gap-3">
-                                        <img src={student.avatar} alt={student.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-600 shadow-sm" />
+                                        <Avatar name={student.name} src={student.avatar} size="md" className="border border-slate-200 dark:border-slate-600 shadow-sm" />
                                         <div className="text-left">
                                             <span className="block font-bold text-slate-800 dark:text-slate-100">{student.name}</span>
                                             <span className="text-xs text-slate-500 dark:text-slate-400">ID: {student.id}</span>
@@ -716,7 +717,7 @@ export const GradebookManager: React.FC<GradebookManagerProps> = ({ students, cl
                             <div key={student.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-all duration-200">
                                 <button onClick={() => setExpandedStudentId(isExpanded ? null : student.id)} className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-800/50 active:bg-slate-100 dark:active:bg-slate-700">
                                     <div className="flex items-center gap-3">
-                                        <img src={student.avatar} alt={student.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-600 shadow-sm" />
+                                        <Avatar name={student.name} src={student.avatar} size="md" className="border border-slate-200 dark:border-slate-600 shadow-sm" />
                                         <div className="text-left">
                                             <span className="block font-bold text-slate-800 dark:text-slate-100">{student.name}</span>
                                         </div>

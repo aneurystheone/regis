@@ -10,6 +10,9 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
     },
+    css: {
+      devSourcemap: true,
+    },
     plugins: [
       react(),
       VitePWA({
@@ -78,6 +81,7 @@ export default defineConfig(({ mode }) => {
         },
       },
       chunkSizeWarningLimit: 1000,
+      sourcemap: true,
     },
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),

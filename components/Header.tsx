@@ -13,9 +13,10 @@ interface HeaderProps {
   onNavigate: (view: View) => void;
   onLogout: () => void;
   currentView: View;
+  connectionStatus?: 'online' | 'offline';
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, userName, userAvatar, onMenuClick, onSearchClick, onNavigate, onLogout, currentView }) => {
+export const Header: React.FC<HeaderProps> = ({ title, userName, userAvatar, onMenuClick, onSearchClick, onNavigate, onLogout, currentView, connectionStatus }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   return (
@@ -56,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({ title, userName, userAvatar, onM
               src={userAvatar}
               size="md"
               className="rounded-xl border-2 border-brand-bg dark:border-slate-600 shadow-sm group-hover:border-brand-secondary transition-all"
+              status={connectionStatus}
             />
           </button>
 

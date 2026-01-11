@@ -101,6 +101,78 @@ const getCurrentUserId = () => {
     return null;
 };
 
+// --- Connection Monitoring ---
+type ConnectionStatus = 'online' | 'offline';
+let connectionStatus: ConnectionStatus = 'online';
+const connectionListeners: ((status: ConnectionStatus) => void)[] = [];
+
+const notifyConnectionChange = (status: ConnectionStatus) => {
+    connectionStatus = status;
+    connectionListeners.forEach(l => l(status));
+};
+
+export const monitorConnection = () => {
+    if (typeof window === 'undefined') return;
+
+    // 1. Initial check
+    checkLatency();
+
+    // 2. Periodic Latency Check (Ping)
+    // Runs every 30s to ensure "good" connectivity
+    setInterval(checkLatency, 30000);
+
+    // 3. Browser Online/Offline events
+    window.addEventListener('online', () => checkLatency());
+    window.addEventListener('offline', () => notifyConnectionChange('offline'));
+};
+
+const checkLatency = async () => {
+    // If browser thinks we are offline, we are offline.
+    if (!navigator.onLine) {
+        notifyConnectionChange('offline');
+        return;
+    }
+
+    const start = Date.now();
+    try {
+        // Fetch a tiny resource or ping a reliable endpoint.
+        // Using a simple fetch to a public CDN or just a non-cached resource.
+        // Or if we want to stay within firebase, we could try a very cheap read, but public ping is often better for "internet" check.
+        // We'll try to fetch the favicon or similar, or just a HEAD request to google.com (might be blocked by cors).
+        // Safest is to just assume if Firestore is connected, we are good, BUT the user asked for "Time out function".
+        // Let's implement a "race" against a timeout.
+
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000)); // 5s timeout
+        // We simulate a ping by just checking if we can write/read a timestamp to a local-only or client-metadata location if possible,
+        // OR simply trust navigator.onLine + Firestore.
+        // The user specifically asked for "time out function for bad internet".
+        // Let's use a fetch to a high-availability simple endpoint that returns 200, like Google's gen_204 or similar if CORS allowed.
+        // Actually, let's just use a dummy fetch to the app's own URL (which might be cached, so add timestamp).
+
+        await Promise.race([
+            fetch('/?ping=' + Date.now(), { method: 'HEAD', cache: 'no-store' }),
+            timeoutPromise
+        ]);
+
+        // If we get here, latency < 5s
+        notifyConnectionChange('online');
+    } catch (e) {
+        // Timeout or fetch error
+        console.warn("Latency check failed or timed out. Switching to offline mode.");
+        notifyConnectionChange('offline');
+    }
+};
+
+export const subscribeToConnectionStatus = (callback: (status: ConnectionStatus) => void) => {
+    callback(connectionStatus); // Initial state
+    connectionListeners.push(callback);
+    return () => {
+        const index = connectionListeners.indexOf(callback);
+        if (index > -1) connectionListeners.splice(index, 1);
+    };
+};
+// -----------------------------
+
 function sanitizeData(data: any): any {
     if (Array.isArray(data)) return data.map(sanitizeData);
     if (data !== null && typeof data === 'object') {
@@ -1076,6 +1148,10 @@ export const api = {
         }
         return '';
     },
+
+    // Connection Monitoring
+    monitorConnection,
+    subscribeToConnectionStatus,
 };
 
 if (typeof window !== 'undefined') (window as any).api = api;

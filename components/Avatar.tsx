@@ -5,6 +5,7 @@ interface AvatarProps {
     src?: string | null;
     size?: 'sm' | 'md' | 'lg' | 'xl';
     className?: string;
+    status?: 'online' | 'offline';
 }
 
 const colors = [
@@ -13,7 +14,9 @@ const colors = [
     'bg-orange-500', 'bg-cyan-500'
 ];
 
-export const Avatar: React.FC<AvatarProps> = ({ name, src, size = 'md', className = '' }) => {
+export const Avatar: React.FC<AvatarProps> = ({ name, src, size = 'md', className = '', status }) => {
+    const [imgError, setImgError] = React.useState(false);
+
     const initials = useMemo(() => {
         if (!name) return '??';
         const parts = name.split(' ');
@@ -29,6 +32,11 @@ export const Avatar: React.FC<AvatarProps> = ({ name, src, size = 'md', classNam
         return colors[Math.abs(hash) % colors.length];
     }, [name]);
 
+    // Reset error state if src changes
+    React.useEffect(() => {
+        setImgError(false);
+    }, [src]);
+
     const sizeClasses = {
         sm: 'w-8 h-8 text-xs',
         md: 'w-10 h-10 text-sm',
@@ -36,22 +44,26 @@ export const Avatar: React.FC<AvatarProps> = ({ name, src, size = 'md', classNam
         xl: 'w-24 h-24 text-3xl'
     };
 
-    if (src && src.startsWith('http') && !src.includes('ui-avatars.com')) {
+    const statusClasses = status === 'online'
+        ? 'ring-2 ring-green-500 ring-offset-2 dark:ring-offset-slate-800'
+        : status === 'offline'
+            ? 'ring-2 ring-yellow-500 ring-offset-2 dark:ring-offset-slate-800'
+            : '';
+
+    if (src && src.startsWith('http') && !src.includes('ui-avatars.com') && !imgError) {
         return (
             <img
                 src={src}
                 alt={name}
-                className={`${sizeClasses[size]} rounded-full object-cover shadow-sm ${className}`}
+                className={`${sizeClasses[size]} rounded-full object-cover shadow-sm ${className} ${statusClasses}`}
                 loading="lazy"
-                onError={(e) => {
-                    (e.target as HTMLImageElement).src = ''; // Fallback to initials on error
-                }}
+                onError={() => setImgError(true)}
             />
         );
     }
 
     return (
-        <div className={`${sizeClasses[size]} ${backgroundColor} ${className} rounded-full flex items-center justify-center text-white font-bold shadow-sm uppercase`}>
+        <div className={`${sizeClasses[size]} ${backgroundColor} ${className} ${statusClasses} rounded-full flex items-center justify-center text-white font-bold shadow-sm uppercase`}>
             {initials}
         </div>
     );

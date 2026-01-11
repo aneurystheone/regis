@@ -34,6 +34,8 @@ import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { ClassDetailModal } from './components/ClassDetailModal';
 import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import { LogoutIcon, TrashIcon } from './components/icons';
+import { ToastContainer, ToastMessage } from './components/Toast';
+import { v4 as uuidv4 } from 'uuid';
 import { VicenteSyncAlert } from './components/VicenteSyncAlert';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { MobileBottomNav } from './components/MobileBottomNav';
@@ -182,6 +184,18 @@ function App() {
 
   const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
 
+  // Connection & Notifications
+  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline'>('online');
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const addToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
+    setToasts(prev => [...prev, { id: uuidv4(), message, type }]);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
 
   // --- Data Subscription Logic ---
 
@@ -262,6 +276,17 @@ function App() {
       api.onTeacherProfileChange(setTeacherProfile, user.id),
       api.onAIFeaturesChange(setAiFeatures, user.id)
     ];
+
+    const unsubscribeConnection = api.subscribeToConnectionStatus((status) => {
+      setConnectionStatus(status);
+      if (status === 'offline') {
+        addToast('Estás desconectado. Los cambios se guardarán localmente.', 'warning');
+      } else if (status === 'online') {
+        addToast('Conexión restablecida.', 'success');
+      }
+    });
+    api.monitorConnection();
+    unsubscribers.push(unsubscribeConnection);
 
     return () => {
       unsubscribers.forEach(unsub => {
@@ -361,6 +386,8 @@ function App() {
     if (!selectedClassId) {
       handleSetSelectedClassId(updatedClasses[updatedClasses.length - 1].id);
     }
+    addToast('Clase creada exitosamente.', 'success');
+    setIsAddClassModalOpen(false);
   };
 
   const handleEditClass = async (classId: string, updatedData: Omit<Class, 'id'>) => {
@@ -368,6 +395,7 @@ function App() {
     setClasses(updatedClasses);
     setClassToEdit(null);
     setIsEditClassModalOpen(false);
+    addToast('Clase actualizada exitosamente.', 'success');
   };
 
   const handleMoveClassToBin = async () => {
@@ -376,12 +404,14 @@ function App() {
     setClasses(updatedClasses);
     setDeletedClasses(updatedDeleted);
     setClassToMoveToBin(null);
+    addToast('Clase movida a la papelera.', 'info');
   };
 
   const handleRestoreClass = async (classId: string) => {
     const { classes: updatedClasses, deletedClasses: updatedDeleted } = await api.restoreClass(classId);
     setClasses(updatedClasses);
     setDeletedClasses(updatedDeleted);
+    addToast('Clase restaurada.', 'success');
   };
 
   const handlePermanentlyDeleteClass = async () => {
@@ -389,6 +419,7 @@ function App() {
     const { deletedClasses: updatedDeleted } = await api.permanentlyDeleteClass(classToPermanentlyDelete.id);
     setDeletedClasses(updatedDeleted);
     setClassToPermanentlyDelete(null);
+    addToast('Clase eliminada permanentemente.', 'error');
   };
 
   const handlePermanentlyDeleteClassesBulk = async () => {
@@ -396,6 +427,7 @@ function App() {
     const { deletedClasses: updatedDeleted } = await api.permanentlyDeleteClasses(classesToPermanentlyDeleteBulk.map(c => c.id));
     setDeletedClasses(updatedDeleted);
     setClassesToPermanentlyDeleteBulk([]);
+    addToast(`${classesToPermanentlyDeleteBulk.length} clases eliminadas permanentemente.`, 'error');
   };
 
   // Student Handlers
@@ -408,6 +440,7 @@ function App() {
     setStudents(updatedStudents);
     setIsAddStudentModalOpen(false);
     setClassIdForNewStudent(null);
+    addToast('Estudiante añadido exitosamente.', 'success');
   };
 
   const handleImportStudents = async (newStudentsData: Omit<Student, 'id' | 'classId' | 'avatar'>[], classId: string) => {
@@ -423,6 +456,7 @@ function App() {
     setIsStudentImportModalOpen(false);
     handleSetSelectedClassId(classId);
     setCurrentView('STUDENTS');
+    addToast(`${newStudentsData.length} estudiantes importados.`, 'success');
   };
 
   const handleMoveStudent = async (studentId: string, newClassId: string) => {
@@ -431,6 +465,7 @@ function App() {
     setStudents(currentStudents);
     setStudentToMove(null);
     setIsMoveStudentModalOpen(false);
+    addToast('Estudiante movido de clase.', 'success');
   };
 
   const handleMoveStudentsBulk = async (studentIds: string[], newClassId: string) => {
@@ -439,6 +474,7 @@ function App() {
     setStudents(currentStudents);
     setStudentsToMoveBulk([]);
     setIsMoveStudentBulkModalOpen(false);
+    addToast(`${studentIds.length} estudiantes movidos.`, 'success');
   };
 
   const handleEditStudent = async (studentId: string, updatedData: Partial<Student>) => {
@@ -453,6 +489,7 @@ function App() {
 
     setStudentToEdit(null);
     setIsEditStudentModalOpen(false);
+    addToast('Estudiante actualizado.', 'success');
   };
 
   const handleEditStudentsBulk = async (studentIds: string[], newClassId: string) => {
@@ -461,6 +498,7 @@ function App() {
     setStudents(currentStudents);
     setStudentsToEditBulk([]);
     setIsEditStudentBulkModalOpen(false);
+    addToast(`${studentIds.length} estudiantes actualizados.`, 'success');
   };
 
   const handleMoveStudentsToBin = async () => {
@@ -469,6 +507,7 @@ function App() {
     setStudents(updatedStudents);
     setDeletedStudents(updatedDeletedStudents);
     setStudentsToMoveToBin([]);
+    addToast(`${studentsToMoveToBin.length} estudiante(s) enviado(s) a la papelera.`, 'info');
   };
 
   const handleRestoreStudent = async (studentId: string) => {
@@ -477,6 +516,7 @@ function App() {
       const { students: updatedStudents, deletedStudents: updatedDeletedStudents } = await api.restoreStudent(studentToRestore);
       setStudents(updatedStudents);
       setDeletedStudents(updatedDeletedStudents);
+      addToast('Estudiante restaurado.', 'success');
     }
   };
 
@@ -488,6 +528,7 @@ function App() {
     setAnecdotes(uan);
     setGrades(ug);
     setStudentToPermanentlyDelete(null);
+    addToast('Estudiante eliminado permanentemente.', 'error');
   };
 
   const handlePermanentlyDeleteStudentsBulk = async () => {
@@ -495,6 +536,7 @@ function App() {
     const { deletedStudents: ud } = await api.permanentlyDeleteStudents(studentsToPermanentlyDeleteBulk.map(s => s.id));
     setDeletedStudents(ud);
     setStudentsToPermanentlyDeleteBulk([]);
+    addToast(`${studentsToPermanentlyDeleteBulk.length} estudiantes eliminados permanentemente.`, 'error');
   };
 
   // Anecdote Handlers
@@ -508,6 +550,7 @@ function App() {
     const updatedAnecdotes = await api.addAnecdotes(newRecords);
     setAnecdotes(updatedAnecdotes);
     setIsAddAnecdoteModalOpen(false);
+    addToast('Anécdota registrada.', 'success');
   };
 
   // Attendance Handlers
@@ -531,12 +574,14 @@ function App() {
   const handleAddCompetencies = async (competenciesToAdd: Omit<Competency, 'id'>[]) => {
     const updatedCompetencies = await api.addCompetencies(competenciesToAdd);
     setCompetencies(updatedCompetencies);
+    addToast('Competencias añadidas.', 'success');
   };
 
   // Instrument Handlers
   const handleAddInstrument = async (instrument: Omit<EvaluationInstrument, 'id'>) => {
     const updatedInstruments = await api.addInstrument(instrument);
     setInstruments(updatedInstruments);
+    addToast('Instrumento de evaluación añadido.', 'success');
   };
 
   const handleEditInstrument = async (instrumentId: string, updatedInstrumentData: Omit<EvaluationInstrument, 'id'>) => {
@@ -544,6 +589,7 @@ function App() {
     setInstruments(updatedInstruments);
     setInstrumentToEdit(null);
     setIsEditInstrumentModalOpen(false);
+    addToast('Instrumento de evaluación actualizado.', 'success');
   };
 
   const handleSaveExpressGrades = async (instrumentId: string, updatedGrades: { studentId: string; score: number | null; criteriaScores?: Record<string, boolean | number | null> }[]) => {
@@ -561,6 +607,7 @@ function App() {
     setGradingInstrument(null);
     setExpressGradingStudentId(null);
     setIsExpressGradingModalOpen(false);
+    addToast('Calificaciones guardadas.', 'success');
   };
 
   // Recovery Grade
@@ -569,75 +616,90 @@ function App() {
     setRecoveryGrades(updatedRecoveryGrades);
     setRecoveryGradeContext(null);
     setIsAddRecoveryGradeModalOpen(false);
+    addToast('Calificación de recuperación guardada.', 'success');
   };
 
   // Teacher Profile
   const handleUpdateTeacherProfile = async (updatedProfile: TeacherProfileData) => {
     await api.setTeacherProfile(updatedProfile);
     setTeacherProfile(updatedProfile);
+    addToast('Perfil actualizado.', 'success');
   };
 
   const handleAddJournalEntry = async (content: string) => {
     const updatedEntries = await api.addJournalEntry(content);
     setJournalEntries(updatedEntries);
+    addToast('Entrada de diario añadida.', 'success');
   };
 
   const handleAddResource = async (title: string, url: string, description: string) => {
     const updatedResources = await api.addResource(title, url, description);
     setResources(updatedResources);
+    addToast('Recurso añadido.', 'success');
   };
 
   // Calendar
   const handleAddCustomEvent = async (eventData: Omit<CustomEvent, 'id'>) => {
     const updatedEvents = await api.addCustomEvent(eventData);
     setCustomEvents(updatedEvents);
+    addToast('Evento añadido al calendario.', 'success');
   };
   const handleUpdateCustomEvent = async (eventId: string, eventData: Omit<CustomEvent, 'id'>) => {
     const updatedEvents = await api.updateCustomEvent(eventId, eventData);
     setCustomEvents(updatedEvents);
+    addToast('Evento actualizado.', 'success');
   };
   const handleDeleteCustomEvent = async (eventId: string) => {
     const updatedEvents = await api.deleteCustomEvent(eventId);
     setCustomEvents(updatedEvents);
+    addToast('Evento eliminado.', 'info');
   };
 
   // Lesson Plans
   const handleAddLessonPlan = async (plan: Omit<LessonPlan, 'id'>) => {
     const updatedPlans = await api.addLessonPlan(plan);
     setLessonPlans(updatedPlans);
+    addToast('Plan de lección añadido.', 'success');
   };
   const handleUpdateLessonPlan = async (planId: string, plan: Omit<LessonPlan, 'id'>) => {
     const updatedPlans = await api.updateLessonPlan(planId, plan);
     setLessonPlans(updatedPlans);
+    addToast('Plan de lección actualizado.', 'success');
   };
   const handleDeleteLessonPlan = async (planId: string) => {
     const updatedPlans = await api.deleteLessonPlan(planId);
     setLessonPlans(updatedPlans);
+    addToast('Plan de lección eliminado.', 'info');
   };
 
   // Settings
   const handleSetIsDarkMode = async (value: boolean) => {
     await api.setIsDarkMode(value);
     setIsDarkMode(value);
+    addToast(`Modo oscuro ${value ? 'activado' : 'desactivado'}.`, 'info');
   };
   const handleSetFontSize = async (size: FontSize) => {
     await api.setFontSize(size);
     setFontSize(size);
+    addToast('Tamaño de fuente actualizado.', 'info');
   };
   const handleSetAiFeatures = async (features: AIFeatures) => {
     await api.setAIFeatures(features);
     setAiFeatures(features);
+    addToast('Configuración de IA actualizada.', 'success');
   };
   const handleToggleSidebarCollapse = async () => {
     const newValue = !isSidebarCollapsed;
     await api.setIsSidebarCollapsed(newValue);
     setIsSidebarCollapsed(newValue);
+    addToast(`Barra lateral ${newValue ? 'colapsada' : 'expandida'}.`, 'info');
   };
 
   const handleLogout = async () => {
     await authService.logout();
     setUser(null);
     setIsLogoutConfirmOpen(false);
+    addToast('Sesión cerrada exitosamente.', 'success');
 
     // Reset App State to defaults
     setIsDarkMode(false);
@@ -767,7 +829,19 @@ function App() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {classes.map(cls => (
-              <button key={cls.id} onClick={() => handleNavigateTo('STUDENTS', { classId: cls.id })} style={{ borderLeftColor: cls.color }} className="relative group w-full text-left bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md border-l-4 hover:shadow-xl transition-all">
+              <div
+                key={cls.id}
+                onClick={() => handleNavigateTo('STUDENTS', { classId: cls.id })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    handleNavigateTo('STUDENTS', { classId: cls.id });
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                style={{ borderLeftColor: cls.color }}
+                className="relative group w-full text-left bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md border-l-4 hover:shadow-xl transition-all cursor-pointer"
+              >
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="font-extrabold text-xl text-slate-800 dark:text-slate-100">{cls.grade.replace(' Grado', '')} {cls.section}</p>
@@ -785,7 +859,7 @@ function App() {
                     <TrashIcon className="w-4 h-4" />
                   </button>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>;
@@ -863,6 +937,7 @@ function App() {
             onLogout={() => setIsLogoutConfirmOpen(true)}
             currentView={currentView}
             title={getHeaderTitle()}
+            connectionStatus={connectionStatus}
           />
         </div>
         <div className="hidden md:block">
@@ -875,8 +950,13 @@ function App() {
             onNavigate={handleNavigateTo}
             onLogout={() => setIsLogoutConfirmOpen(true)}
             currentView={currentView}
+            connectionStatus={connectionStatus}
           />
         </div>
+
+        {/* Toast Container */}
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
+
         <div className="flex-1 overflow-y-auto relative pb-20 md:pb-0">
           {renderView()}
           <UpdatePrompt />
