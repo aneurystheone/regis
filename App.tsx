@@ -36,6 +36,8 @@ import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import { LogoutIcon, TrashIcon } from './components/icons';
 import { VicenteSyncAlert } from './components/VicenteSyncAlert';
 import { UpdatePrompt } from './components/UpdatePrompt';
+import { MobileBottomNav } from './components/MobileBottomNav';
+import { MobileHeader } from './components/MobileHeader';
 
 import { api } from './services/api';
 import { authService } from './services/authService';
@@ -824,21 +826,36 @@ function App() {
     <div className={`flex h-screen bg-slate-100 dark:bg-slate-900 font-sans`}>
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isSidebarCollapsed={isSidebarCollapsed} onToggleCollapse={handleToggleSidebarCollapse} />
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <Header
-          title={getHeaderTitle()}
-          userName={user.name}
-          userAvatar={teacherProfile?.profilePictureUrl}
-          onMenuClick={() => setIsSidebarOpen(true)}
-          onSearchClick={() => setIsGlobalSearchModalOpen(true)}
-          onNavigate={handleNavigateTo}
-          onLogout={() => setIsLogoutConfirmOpen(true)}
-          currentView={currentView}
-        />
-        <div className="flex-1 overflow-y-auto relative">
+        <div className="md:hidden">
+          <MobileHeader
+            userName={user.name}
+            userAvatar={teacherProfile?.profilePictureUrl}
+            onSearchClick={() => setIsGlobalSearchModalOpen(true)}
+            onNavigate={handleNavigateTo}
+            onLogout={() => setIsLogoutConfirmOpen(true)}
+            currentView={currentView}
+            title={getHeaderTitle()}
+          />
+        </div>
+        <div className="hidden md:block">
+          <Header
+            title={getHeaderTitle()}
+            userName={user.name}
+            userAvatar={teacherProfile?.profilePictureUrl}
+            onMenuClick={() => setIsSidebarOpen(true)}
+            onSearchClick={() => setIsGlobalSearchModalOpen(true)}
+            onNavigate={handleNavigateTo}
+            onLogout={() => setIsLogoutConfirmOpen(true)}
+            currentView={currentView}
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto relative pb-20 md:pb-0">
           {renderView()}
           <UpdatePrompt />
         </div>
       </main>
+
+      <MobileBottomNav currentView={currentView} setCurrentView={setCurrentView} />
 
       {/* Modals */}
       <AddClassModal isOpen={isAddClassModalOpen} onClose={() => setIsAddClassModalOpen(false)} onAddClass={handleAddClass} classes={classes} />
