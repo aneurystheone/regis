@@ -277,13 +277,15 @@ function App() {
       api.onAIFeaturesChange(setAiFeatures, user.id)
     ];
 
+    let isInitialStatus = true;
     const unsubscribeConnection = api.subscribeToConnectionStatus((status) => {
       setConnectionStatus(status);
       if (status === 'offline') {
         addToast('Estás desconectado. Los cambios se guardarán localmente.', 'warning');
-      } else if (status === 'online') {
+      } else if (status === 'online' && !isInitialStatus) {
         addToast('Conexión restablecida.', 'success');
       }
+      isInitialStatus = false;
     });
     api.monitorConnection();
     unsubscribers.push(unsubscribeConnection);

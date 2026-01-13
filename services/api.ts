@@ -107,6 +107,7 @@ let connectionStatus: ConnectionStatus = 'online';
 const connectionListeners: ((status: ConnectionStatus) => void)[] = [];
 
 const notifyConnectionChange = (status: ConnectionStatus) => {
+    if (connectionStatus === status) return;
     connectionStatus = status;
     connectionListeners.forEach(l => l(status));
 };
@@ -583,10 +584,22 @@ export const api = {
         // Generate Standardized ID (ST-YYYY-XXXX)
         const current = getLocal<Student>(COLLECTIONS.STUDENTS);
         const year = new Date().getFullYear();
-        // Count students from current year to determine sequence
-        const currentYearCount = current.filter(s => s.id.startsWith(`ST-${year}`)).length;
-        const sequence = (currentYearCount + 1).toString().padStart(4, '0');
-        const newId = `ST-${year}-${sequence}`;
+
+        // Find the highest sequence number currently in use for this year
+        const yearPrefix = `ST-${year}-`;
+        const yearStudents = current.filter(s => s.id.startsWith(yearPrefix));
+
+        let maxSequence = 0;
+        yearStudents.forEach(s => {
+            const seqPart = s.id.replace(yearPrefix, '');
+            const seqNum = parseInt(seqPart, 10);
+            if (!isNaN(seqNum) && seqNum > maxSequence) {
+                maxSequence = seqNum;
+            }
+        });
+
+        const newSequence = (maxSequence + 1).toString().padStart(4, '0');
+        const newId = `${yearPrefix}${newSequence}`;
 
         const newStudent: Student = { ...studentData, id: newId };
 
@@ -617,8 +630,18 @@ export const api = {
         const current = getLocal<Student>(COLLECTIONS.STUDENTS);
 
         const year = new Date().getFullYear();
-        let currentSequence = current.filter(s => s.id.startsWith(`ST-${year}`)).length;
+        const yearPrefix = `ST-${year}-`;
 
+        // Find the current max sequence
+        let maxSequence = 0;
+        current.filter(s => s.id.startsWith(yearPrefix)).forEach(s => {
+            const seqNum = parseInt(s.id.replace(yearPrefix, ''), 10);
+            if (!isNaN(seqNum) && seqNum > maxSequence) {
+                maxSequence = seqNum;
+            }
+        });
+
+        let currentSequence = maxSequence;
         const newStudents = studentsData.map(s => {
             currentSequence++;
             const sequence = currentSequence.toString().padStart(4, '0');

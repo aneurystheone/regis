@@ -21,8 +21,8 @@ const TabButton: React.FC<{
         type="button"
         onClick={onClick}
         className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-2 px-2 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none ${isActive
-                ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/10'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+            ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/10'
+            : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
             } ${hasError ? 'text-red-500 dark:text-red-400' : ''}`}
     >
         {icon}
@@ -31,6 +31,7 @@ const TabButton: React.FC<{
 );
 
 export const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClose, onAddStudent }) => {
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [activeTab, setActiveTab] = useState<ActiveTab>('general');
 
     // General State
@@ -67,6 +68,7 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClos
     useEffect(() => {
         if (!isOpen) {
             // Reset state on close
+            setIsSubmitting(false);
             setActiveTab('general');
             setName('');
             setAvatar('');
@@ -102,42 +104,50 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClos
 
     const isNameValid = name.trim().split(/\s+/).filter(Boolean).length >= 2;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (isNameValid) {
-            const studentData: Omit<Student, 'id' | 'classId'> = {
-                name: name.trim(),
-                avatar: avatar || '',
-                orderNumber: orderNumber ? parseInt(orderNumber, 10) : undefined,
-                gender,
-                birthDate,
-                email,
-                phone,
-                isRepeater,
-                healthInfo: {
-                    bloodType,
-                    allergies,
-                    medications,
-                    emergencyContactName: emergencyName,
-                    emergencyContactPhone: emergencyPhone
-                },
-                familyInfo: {
-                    motherName,
-                    motherPhone,
-                    fatherName,
-                    fatherPhone,
-                    guardianName,
-                    guardianPhone,
-                    address
-                },
-                connectivityInfo: {
-                    hasInternet,
-                    deviceAccess,
-                    platformFamiliarity
-                }
-            };
+        if (isNameValid && !isSubmitting) {
+            setIsSubmitting(true);
+            try {
+                const studentData: Omit<Student, 'id' | 'classId'> = {
+                    name: name.trim(),
+                    avatar: avatar || '',
+                    orderNumber: orderNumber ? parseInt(orderNumber, 10) : undefined,
+                    gender,
+                    birthDate,
+                    email,
+                    phone,
+                    isRepeater,
+                    healthInfo: {
+                        bloodType,
+                        allergies,
+                        medications,
+                        emergencyContactName: emergencyName,
+                        emergencyContactPhone: emergencyPhone
+                    },
+                    familyInfo: {
+                        motherName,
+                        motherPhone,
+                        fatherName,
+                        fatherPhone,
+                        guardianName,
+                        guardianPhone,
+                        address
+                    },
+                    connectivityInfo: {
+                        hasInternet,
+                        deviceAccess,
+                        platformFamiliarity
+                    }
+                };
 
-            onAddStudent(studentData);
+                await onAddStudent(studentData);
+                // Modal normally closes via prop or parent state change, but reset flag if it stays
+                setIsSubmitting(false);
+            } catch (error) {
+                console.error("Error adding student:", error);
+                setIsSubmitting(false);
+            }
         }
     };
 
@@ -390,10 +400,22 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClos
                         type="submit"
                         form="add-student-form"
                         className="flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200 dark:shadow-indigo-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={!isNameValid}
+                        disabled={!isNameValid || isSubmitting}
                     >
-                        <PlusIcon className="w-4 h-4 mr-2" />
-                        Guardar
+                        {isSubmitting ? (
+                            <>
+                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Guardando...
+                            </>
+                        ) : (
+                            <>
+                                <PlusIcon className="w-4 h-4 mr-2" />
+                                Guardar
+                            </>
+                        )}
                     </button>
                 </div>
             </div>

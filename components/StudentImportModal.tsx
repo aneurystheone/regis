@@ -30,6 +30,7 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
 
   const [importMode, setImportMode] = useState<'csv' | 'image'>('csv');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
       setError('');
       setImportMode('csv');
       setIsAnalyzing(false);
+      setIsImporting(false);
       setImagePreviewUrl(null);
     }
   }, [isOpen, classes, selectedClassId]);
@@ -202,9 +204,17 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
     document.body.removeChild(link);
   };
 
-  const handleImportClick = () => {
-    if (parseResult && parseResult.valid.length > 0 && activeClassId) {
-      onImport(parseResult.valid, activeClassId);
+  const handleImportClick = async () => {
+    if (parseResult && parseResult.valid.length > 0 && activeClassId && !isImporting) {
+      setIsImporting(true);
+      try {
+        await onImport(parseResult.valid, activeClassId);
+        // Modal normally closes via parent state change
+      } catch (err) {
+        console.error("Error importing students:", err);
+        setError("Error al importar los estudiantes.");
+        setIsImporting(false);
+      }
     }
   };
 
@@ -343,10 +353,22 @@ export const StudentImportModal: React.FC<StudentImportModalProps> = ({ isOpen, 
 
         <div className="flex-shrink-0 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-b-xl flex justify-end gap-3">
           <button onClick={onClose} className="bg-slate-200 text-slate-800 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-200 dark:hover:bg-slate-500">Cancelar</button>
-          <button onClick={handleImportClick} disabled={!parseResult || parseResult.valid.length === 0 || isAnalyzing}
+          <button onClick={handleImportClick} disabled={!parseResult || parseResult.valid.length === 0 || isAnalyzing || isImporting}
             className="flex items-center bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm disabled:bg-slate-400 dark:disabled:bg-slate-600 disabled:cursor-not-allowed">
-            <DocumentAddIcon className="w-5 h-5 mr-2" />
-            Importar {parseResult?.valid.length || ''} Estudiantes
+            {isImporting ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Importando...
+              </>
+            ) : (
+              <>
+                <DocumentAddIcon className="w-5 h-5 mr-2" />
+                Importar {parseResult?.valid.length || ''} Estudiantes
+              </>
+            )}
           </button>
         </div>
       </div>
