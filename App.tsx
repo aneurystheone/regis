@@ -479,6 +479,11 @@ function App() {
     addToast(`${studentIds.length} estudiantes movidos.`, 'success');
   };
 
+  const handleUpdateStudentsOrder = async (classId: string, orderedStudentIds: string[]) => {
+    const updatedStudents = await api.updateStudentsOrder(classId, orderedStudentIds);
+    setStudents(updatedStudents);
+  };
+
   const handleEditStudent = async (studentId: string, updatedData: Partial<Student>) => {
     await api.updateStudent(studentId, updatedData);
     const updatedStudents = students.map(s => s.id === studentId ? { ...s, ...updatedData } : s);
@@ -866,7 +871,7 @@ function App() {
           </div>
         </div>;
       case 'STUDENTS':
-        return <StudentManager students={students} classes={classes} onViewProfile={(s) => { setSelectedStudent(s); setCurrentView('STUDENT_PROFILE'); }} onAddClassClick={() => setIsAddClassModalOpen(true)} onAddStudentClick={(id) => { setClassIdForNewStudent(id); setIsAddStudentModalOpen(true); }} onImportStudentsClick={() => setIsStudentImportModalOpen(true)} onMoveStudentClick={(s) => { setStudentToMove(s); setIsMoveStudentModalOpen(true); }} onEditStudentClick={(s) => { setStudentToEdit(s); setIsEditStudentModalOpen(true); }} onMoveStudentBulkClick={(s) => { setStudentsToMoveBulk(s); setIsMoveStudentBulkModalOpen(true); }} onEditStudentBulkClick={(s) => { setStudentsToEditBulk(s); setIsEditStudentBulkModalOpen(true); }} onMoveToBinClick={(s) => { setStudentsToMoveToBin([s]); }} onMoveToBinBulkClick={(s) => { setStudentsToMoveToBin(s); }} activeStudentId={activeStudentIdValue} selectedClassId={selectedClassId} onSelectClass={handleSetSelectedClassId} />;
+        return <StudentManager students={students} classes={classes} onViewProfile={(s) => { setSelectedStudent(s); setCurrentView('STUDENT_PROFILE'); }} onUpdateStudentsOrder={handleUpdateStudentsOrder} onAddClassClick={() => setIsAddClassModalOpen(true)} onAddStudentClick={(id) => { setClassIdForNewStudent(id); setIsAddStudentModalOpen(true); }} onImportStudentsClick={() => setIsStudentImportModalOpen(true)} onMoveStudentClick={(s) => { setStudentToMove(s); setIsMoveStudentModalOpen(true); }} onEditStudentClick={(s) => { setStudentToEdit(s); setIsEditStudentModalOpen(true); }} onMoveStudentBulkClick={(s) => { setStudentsToMoveBulk(s); setIsMoveStudentBulkModalOpen(true); }} onEditStudentBulkClick={(s) => { setStudentsToEditBulk(s); setIsEditStudentBulkModalOpen(true); }} onMoveToBinClick={(s) => { setStudentsToMoveToBin([s]); }} onMoveToBinBulkClick={(s) => { setStudentsToMoveToBin(s); }} activeStudentId={activeStudentIdValue} selectedClassId={selectedClassId} onSelectClass={handleSetSelectedClassId} />;
       case 'STUDENT_PROFILE':
         if (selectedStudent) {
           return <StudentProfile student={selectedStudent} anecdotes={anecdotes} attendance={attendance} classes={classes} onBack={() => setCurrentView('STUDENTS')} onAddAnecdote={(anecdote) => handleAddAnecdote({ ...anecdote, studentIds: [anecdote.studentId] })} onViewGrades={(id) => { setStudentFilter(id); setCurrentView('GRADEBOOK_GRADES'); }} onUpdateStudent={(data) => handleEditStudent(selectedStudent.id, data)} aiFeatures={aiFeatures} />;

@@ -1,7 +1,24 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { Student, Class } from '../types';
-import { PlusIcon, PencilIcon, TrashIcon, SwitchHorizontalIcon, SearchIcon, BookOpenIcon, StudentsIcon, DocumentAddIcon, XIcon, CheckIcon } from './icons';
+import { PlusIcon, PencilIcon, TrashIcon, SwitchHorizontalIcon, SearchIcon, BookOpenIcon, StudentsIcon, DocumentAddIcon, XIcon, CheckIcon, SelectorIcon } from './icons';
 import { ClassSelector } from './ClassSelector';
 import { Avatar } from './Avatar';
 
@@ -21,7 +38,175 @@ interface StudentManagerProps {
     activeStudentId?: string;
     selectedClassId: string | null;
     onSelectClass: (classId: string) => void;
+    onUpdateStudentsOrder: (classId: string, orderedStudentIds: string[]) => void;
 }
+
+const SortableStudentRow: React.FC<{
+    student: Student;
+    isSelected: boolean;
+    isReorderMode: boolean;
+    onViewProfile: (student: Student) => void;
+    onSelectStudent: (id: string) => void;
+    onMoveStudentClick: (student: Student) => void;
+    onEditStudentClick: (student: Student) => void;
+    onMoveToBinClick: (student: Student) => void;
+}> = ({ student, isSelected, isReorderMode, onViewProfile, onSelectStudent, onMoveStudentClick, onEditStudentClick, onMoveToBinClick }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: student.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : 'auto',
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <tr
+            ref={setNodeRef}
+            style={style}
+            className={`transition-colors duration-150 ${isSelected
+                ? 'bg-indigo-50 dark:bg-indigo-900/20'
+                : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'
+                } ${isDragging ? 'shadow-2xl' : ''}`}
+        >
+            <td className="p-4">
+                <div className="flex items-center gap-2">
+                    {isReorderMode ? (
+                        <button
+                            {...attributes}
+                            {...listeners}
+                            className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg cursor-grab active:cursor-grabbing transition-colors"
+                        >
+                            <SelectorIcon className="w-5 h-5" />
+                        </button>
+                    ) : (
+                        <input
+                            type="checkbox"
+                            className="h-5 w-5 text-indigo-600 border-slate-300 dark:border-slate-500 rounded focus:ring-indigo-500 bg-white dark:bg-slate-600 cursor-pointer"
+                            checked={isSelected}
+                            onChange={() => onSelectStudent(student.id)}
+                            aria-label={`Seleccionar a ${student.name}`}
+                        />
+                    )}
+                </div>
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+                <div className="flex items-center cursor-pointer" onClick={() => onViewProfile(student)}>
+                    <div className="flex-shrink-0 h-10 w-10 relative">
+                        <Avatar
+                            name={student.name}
+                            src={student.avatar}
+                            size="md"
+                            className="border border-slate-200 dark:border-slate-600"
+                        />
+                        {student.orderNumber && (
+                            <div className="absolute -top-1 -right-1 bg-slate-700 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border border-white dark:border-slate-800">
+                                {student.orderNumber}
+                            </div>
+                        )}
+                    </div>
+                    <div className="ml-4">
+                        <div className={`text-sm font-bold ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-900 dark:text-slate-100'}`}>{student.name}</div>
+                    </div>
+                </div>
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{student.id}</td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <div className="flex items-center space-x-2">
+                    <button onClick={() => onViewProfile(student)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 px-3 py-1 rounded-lg transition-colors">Ver Perfil</button>
+                    <div className="h-4 w-px bg-slate-300 dark:bg-slate-600 mx-2"></div>
+                    <button onClick={() => onMoveStudentClick(student)} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Mover">
+                        <SwitchHorizontalIcon />
+                    </button>
+                    <button onClick={() => onEditStudentClick(student)} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Editar">
+                        <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => onMoveToBinClick(student)} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-2 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Eliminar"><TrashIcon className="w-4 h-4" /></button>
+                </div>
+            </td>
+        </tr>
+    );
+};
+
+const SortableStudentCard: React.FC<{
+    student: Student;
+    isSelected: boolean;
+    isReorderMode: boolean;
+    onClick: () => void;
+    onTouchStart: (id: string) => void;
+    onTouchMove: () => void;
+    onTouchEnd: (e: React.TouchEvent) => void;
+}> = ({ student, isSelected, isReorderMode, onClick, onTouchStart, onTouchMove, onTouchEnd }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: student.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 50 : 'auto',
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...(isReorderMode ? { ...attributes, ...listeners } : {})}
+            className={`relative rounded-2xl shadow-sm p-4 transition-all duration-200 touch-manipulation ${isSelected && !isReorderMode
+                ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-2 ring-indigo-500 dark:ring-indigo-400 transform scale-[0.98]'
+                : 'bg-white dark:bg-slate-800 active:scale-[0.98]'
+                } ${isDragging ? 'shadow-2xl z-10 opacity-70' : ''} ${isReorderMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
+            onClick={onClick}
+            onTouchStart={() => onTouchStart(student.id)}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            onContextMenu={(e) => e.preventDefault()}
+        >
+            {isSelected && !isReorderMode && (
+                <div className="absolute top-3 right-3 bg-indigo-500 text-white rounded-full p-1 shadow-sm animate-scale-in">
+                    <CheckIcon className="w-4 h-4" />
+                </div>
+            )}
+
+            <div className="flex items-start gap-4 pointer-events-none">
+                <div className="relative flex-shrink-0">
+                    <Avatar
+                        name={student.name}
+                        src={student.avatar}
+                        size="md"
+                        className="h-14 w-14 border-2 border-slate-100 dark:border-slate-700"
+                    />
+                    {student.orderNumber && (
+                        <div className="absolute -bottom-1 -right-1 bg-slate-700 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-800">
+                            {student.orderNumber}
+                        </div>
+                    )}
+                </div>
+                <div className="flex-1 min-w-0 pt-1">
+                    <div className="flex justify-between items-start">
+                        <p className={`font-bold truncate ${isSelected && !isReorderMode ? 'text-indigo-900 dark:text-indigo-100' : 'text-slate-900 dark:text-slate-100'}`}>
+                            {student.name}
+                        </p>
+                        {isReorderMode && <SelectorIcon className="w-5 h-5 mt-1 text-indigo-600 dark:text-indigo-400" />}
+                    </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate">ID: {student.id}</p>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const StudentManager: React.FC<StudentManagerProps> = ({
     students,
@@ -38,11 +223,44 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
     onMoveToBinBulkClick,
     activeStudentId,
     selectedClassId,
-    onSelectClass
+    onSelectClass,
+    onUpdateStudentsOrder
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
     const [isFabOpen, setIsFabOpen] = useState(false);
+    const [isReorderMode, setIsReorderMode] = useState(false);
+    const [reorderedStudents, setReorderedStudents] = useState<Student[]>([]);
+
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            const list = isReorderMode ? reorderedStudents : filteredStudents;
+            const oldIndex = list.findIndex((s) => s.id === active.id);
+            const newIndex = list.findIndex((s) => s.id === over.id);
+
+            const newOrder = arrayMove(list, oldIndex, newIndex);
+
+            if (isReorderMode) {
+                setReorderedStudents(newOrder);
+            } else if (selectedClassId) {
+                onUpdateStudentsOrder(selectedClassId, newOrder.map((s: Student) => s.id));
+            }
+        }
+    };
 
     // Long press state
     const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,6 +278,12 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
             .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
             .sort((a, b) => (a.orderNumber || 999) - (b.orderNumber || 999) || a.name.localeCompare(b.name));
     }, [students, selectedClassId, searchQuery]);
+
+    useEffect(() => {
+        if (!isReorderMode) {
+            setReorderedStudents(filteredStudents);
+        }
+    }, [filteredStudents, isReorderMode]);
 
     useEffect(() => {
         setSelectedStudentIds([]);
@@ -114,6 +338,25 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
         setIsSelectionMode(false);
     };
 
+    const handleConfirmReorder = () => {
+        if (selectedClassId) {
+            onUpdateStudentsOrder(selectedClassId, reorderedStudents.map(s => s.id));
+        }
+        setIsReorderMode(false);
+    };
+
+    const handleCancelReorder = () => {
+        setReorderedStudents(filteredStudents);
+        setIsReorderMode(false);
+    };
+
+    const handleEnableReorderMode = () => {
+        setIsReorderMode(true);
+        setReorderedStudents(filteredStudents);
+        setSelectedStudentIds([]);
+        setIsSelectionMode(false);
+    };
+
     // --- Touch Logic for Long Press ---
     const handleTouchStart = (studentId: string) => {
         isLongPressTriggered.current = false;
@@ -147,6 +390,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
 
     // Standard Click Handler (Fires on Tap, respects Scroll)
     const handleStudentClick = (student: Student) => {
+        if (isReorderMode) return;
         if (isSelectionMode) {
             handleSelectStudent(student.id);
         } else {
@@ -186,7 +430,34 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                     </div>
                 </div>
 
-                {/* Selection Actions Header (Desktop) / Floating Bottom Bar (Mobile) */}
+                {/* Reorder Mode Toolbar (Confirm/Cancel) */}
+                {isReorderMode && (
+                    <div className="sticky top-0 z-50 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-2xl border-2 border-indigo-500 animate-slide-up flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-indigo-100 dark:bg-indigo-900/50 p-2 rounded-full">
+                                <SelectorIcon className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-900 dark:text-white">Modo Reordenar</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Arrastra para cambiar el orden</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3 w-full sm:w-auto">
+                            <button
+                                onClick={handleCancelReorder}
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                <XIcon className="w-5 h-5" /> Cancelar
+                            </button>
+                            <button
+                                onClick={handleConfirmReorder}
+                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                            >
+                                <CheckIcon className="w-5 h-5" /> Confirmar
+                            </button>
+                        </div>
+                    </div>
+                )}
                 {selectedStudentIds.length > 0 && (
                     <>
                         <div className="hidden md:flex sticky top-0 z-10 bg-indigo-50 dark:bg-indigo-900/90 backdrop-blur-sm p-4 rounded-xl mb-6 justify-between items-center shadow-md border border-indigo-100 dark:border-indigo-700">
@@ -197,6 +468,9 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                                 <p className="text-base font-bold text-indigo-900 dark:text-indigo-100">{selectedStudentIds.length} seleccionados</p>
                             </div>
                             <div className="flex items-center gap-2">
+                                <button onClick={handleEnableReorderMode} className="flex items-center text-sm bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 font-semibold py-2 px-4 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors shadow-sm border border-slate-200 dark:border-slate-600">
+                                    <SelectorIcon className="mr-2 w-4 h-4" /> Reordenar
+                                </button>
                                 <button onClick={handleBulkEdit} className="flex items-center text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors shadow-sm border border-slate-200 dark:border-slate-600">
                                     <PencilIcon className="mr-2 w-4 h-4" /> Editar
                                 </button>
@@ -204,7 +478,7 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                                     <SwitchHorizontalIcon className="mr-2 w-4 h-4" /> Mover
                                 </button>
                                 <button onClick={handleBulkMoveToBin} className="flex items-center text-sm bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition-colors shadow-sm">
-                                    <TrashIcon className="mr-2 w-4 h-4" /> Papelera
+                                    <TrashIcon className="mr-2 w-4 h-4" /> Eliminar
                                 </button>
                             </div>
                         </div>
@@ -230,14 +504,22 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                                         <span className="text-xs font-medium">Perfil</span>
                                     </button>
                                 )}
+                                <button onClick={() => { handleBulkEdit(); cancelSelectionMode(); }} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl hover:bg-white/10">
+                                    <PencilIcon className="w-6 h-6" />
+                                    <span className="text-xs font-medium">Editar</span>
+                                </button>
 
                                 <button onClick={() => { handleBulkMove(); cancelSelectionMode(); }} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl hover:bg-white/10">
                                     <SwitchHorizontalIcon className="w-6 h-6" />
                                     <span className="text-xs font-medium">Mover</span>
                                 </button>
+                                <button onClick={() => { handleEnableReorderMode(); }} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl hover:bg-white/10 text-indigo-400">
+                                    <SelectorIcon className="w-6 h-6" />
+                                    <span className="text-xs font-medium">Reordenar</span>
+                                </button>
                                 <button onClick={() => { handleBulkMoveToBin(); cancelSelectionMode(); }} className="flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-xl hover:bg-red-500/20 text-red-400">
                                     <TrashIcon className="w-6 h-6" />
-                                    <span className="text-xs font-medium">Borrar</span>
+                                    <span className="text-xs font-medium">Eliminar</span>
                                 </button>
                             </div>
                         </div>
@@ -264,62 +546,30 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                             </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-                            {filteredStudents.map((student) => {
-                                const isSelected = selectedStudentIds.includes(student.id);
-                                return (
-                                    <tr
-                                        key={student.id}
-                                        className={`transition-colors duration-150 ${isSelected
-                                            ? 'bg-indigo-50 dark:bg-indigo-900/20'
-                                            : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'
-                                            }`}
-                                    >
-                                        <td className="p-4">
-                                            <input
-                                                type="checkbox"
-                                                className="h-5 w-5 text-indigo-600 border-slate-300 dark:border-slate-500 rounded focus:ring-indigo-500 bg-white dark:bg-slate-600 cursor-pointer"
-                                                checked={isSelected}
-                                                onChange={() => handleSelectStudent(student.id)}
-                                                aria-label={`Seleccionar a ${student.name}`}
-                                            />
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center cursor-pointer" onClick={() => onViewProfile(student)}>
-                                                <div className="flex-shrink-0 h-10 w-10 relative">
-                                                    <Avatar
-                                                        name={student.name}
-                                                        src={student.avatar}
-                                                        size="md"
-                                                        className="border border-slate-200 dark:border-slate-600"
-                                                    />
-                                                    {student.orderNumber && (
-                                                        <div className="absolute -top-1 -right-1 bg-slate-700 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border border-white dark:border-slate-800">
-                                                            {student.orderNumber}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="ml-4">
-                                                    <div className={`text-sm font-bold ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-900 dark:text-slate-100'}`}>{student.name}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{student.id}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <div className="flex items-center space-x-2">
-                                                <button onClick={() => onViewProfile(student)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 px-3 py-1 rounded-lg transition-colors">Ver Perfil</button>
-                                                <div className="h-4 w-px bg-slate-300 dark:bg-slate-600 mx-2"></div>
-                                                <button onClick={() => onMoveStudentClick(student)} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Mover">
-                                                    <SwitchHorizontalIcon />
-                                                </button>
-                                                <button onClick={() => onEditStudentClick(student)} className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Editar">
-                                                    <PencilIcon className="w-4 h-4" />
-                                                </button>
-                                                <button onClick={() => onMoveToBinClick(student)} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-2 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Eliminar"><TrashIcon className="w-4 h-4" /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <SortableContext
+                                    items={(isReorderMode ? reorderedStudents : filteredStudents).map(s => s.id)}
+                                    strategy={verticalListSortingStrategy}
+                                >
+                                    {(isReorderMode ? reorderedStudents : filteredStudents).map((student) => (
+                                        <SortableStudentRow
+                                            key={student.id}
+                                            student={student}
+                                            isSelected={selectedStudentIds.includes(student.id)}
+                                            isReorderMode={isReorderMode}
+                                            onViewProfile={onViewProfile}
+                                            onSelectStudent={handleSelectStudent}
+                                            onMoveStudentClick={onMoveStudentClick}
+                                            onEditStudentClick={onEditStudentClick}
+                                            onMoveToBinClick={onMoveToBinClick}
+                                        />
+                                    ))}
+                                </SortableContext>
+                            </DndContext>
                             {filteredStudents.length === 0 && (
                                 <tr>
                                     <td colSpan={4} className="text-center py-12 text-slate-500 dark:text-slate-400">
@@ -362,51 +612,29 @@ export const StudentManager: React.FC<StudentManagerProps> = ({
                         </div>
                     )}
 
-                    {filteredStudents.map(student => {
-                        const isSelected = selectedStudentIds.includes(student.id);
-                        return (
-                            <div
-                                key={student.id}
-                                className={`relative rounded-2xl shadow-sm p-4 transition-all duration-200 touch-manipulation ${isSelected
-                                    ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-2 ring-indigo-500 dark:ring-indigo-400 transform scale-[0.98]'
-                                    : 'bg-white dark:bg-slate-800 active:scale-[0.98]'
-                                    }`}
-                                onClick={() => handleStudentClick(student)}
-                                onTouchStart={() => handleTouchStart(student.id)}
-                                onTouchMove={handleTouchMove}
-                                onTouchEnd={handleTouchEnd}
-                                onContextMenu={(e) => e.preventDefault()}
-                            >
-                                {isSelected && (
-                                    <div className="absolute top-3 right-3 bg-indigo-500 text-white rounded-full p-1 shadow-sm animate-scale-in">
-                                        <CheckIcon className="w-4 h-4" />
-                                    </div>
-                                )}
-
-                                <div className="flex items-start gap-4 pointer-events-none">
-                                    <div className="relative flex-shrink-0">
-                                        <Avatar
-                                            name={student.name}
-                                            src={student.avatar}
-                                            size="md"
-                                            className="h-14 w-14 border-2 border-slate-100 dark:border-slate-700"
-                                        />
-                                        {student.orderNumber && (
-                                            <div className="absolute -bottom-1 -right-1 bg-slate-700 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-800">
-                                                {student.orderNumber}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0 pt-1">
-                                        <p className={`font-bold truncate ${isSelected ? 'text-indigo-900 dark:text-indigo-100' : 'text-slate-900 dark:text-slate-100'}`}>
-                                            {student.name}
-                                        </p>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400 truncate">ID: {student.id}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={(isReorderMode ? reorderedStudents : filteredStudents).map(s => s.id)}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            {(isReorderMode ? reorderedStudents : filteredStudents).map(student => (
+                                <SortableStudentCard
+                                    key={student.id}
+                                    student={student}
+                                    isSelected={selectedStudentIds.includes(student.id)}
+                                    isReorderMode={isReorderMode}
+                                    onClick={() => handleStudentClick(student)}
+                                    onTouchStart={handleTouchStart}
+                                    onTouchMove={handleTouchMove}
+                                    onTouchEnd={handleTouchEnd}
+                                />
+                            ))}
+                        </SortableContext>
+                    </DndContext>
                     {filteredStudents.length === 0 && (
                         <div className="col-span-1 sm:col-span-2 text-center py-12 px-4 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-xl shadow-sm border-2 border-dashed border-slate-200 dark:border-slate-700">
                             {searchQuery ? (

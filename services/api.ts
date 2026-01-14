@@ -599,9 +599,14 @@ export const api = {
         });
 
         const newSequence = (maxSequence + 1).toString().padStart(4, '0');
-        const newId = `${yearPrefix}${newSequence}`;
+        // Automatic numbering logic
+        const classStudents = current.filter(s => s.classId === studentData.classId);
+        const nextOrderNumber = classStudents.length > 0
+            ? Math.max(...classStudents.map(s => s.orderNumber || 0)) + 1
+            : 1;
 
-        const newStudent: Student = { ...studentData, id: newId };
+        const newId = `${yearPrefix}${newSequence}`;
+        const newStudent: Student = { ...studentData, id: newId, orderNumber: nextOrderNumber };
 
         setLocal(COLLECTIONS.STUDENTS, [...current, newStudent]);
 
@@ -641,13 +646,21 @@ export const api = {
             }
         });
 
+        const classId = studentsData[0]?.classId;
+        const classStudentsCount = current.filter(s => s.classId === classId).length;
+        let nextOrderNumber = classStudentsCount > 0
+            ? Math.max(...current.filter(s => s.classId === classId).map(s => s.orderNumber || 0)) + 1
+            : 1;
+
         let currentSequence = maxSequence;
         const newStudents = studentsData.map(s => {
             currentSequence++;
+            const seqNumber = nextOrderNumber++;
             const sequence = currentSequence.toString().padStart(4, '0');
             return {
                 ...s,
-                id: `ST-${year}-${sequence}`
+                id: `ST-${year}-${sequence}`,
+                orderNumber: seqNumber
             };
         });
 
@@ -752,6 +765,37 @@ export const api = {
             }
         }
         return { deletedStudents: newDeleted };
+    },
+    async updateStudentsOrder(classId: string, orderedStudentIds: string[]): Promise<Student[]> {
+        const current = getLocal<Student>(COLLECTIONS.STUDENTS);
+
+        // Update local orderNumbers
+        const updated = current.map(s => {
+            if (s.classId === classId) {
+                const newIndex = orderedStudentIds.indexOf(s.id);
+                if (newIndex !== -1) {
+                    return { ...s, orderNumber: newIndex + 1 };
+                }
+            }
+            return s;
+        });
+
+        setLocal(COLLECTIONS.STUDENTS, updated);
+
+        if (!isVirtualMode()) {
+            const batch = writeBatch(db);
+            updated.filter(s => s.classId === classId).forEach(s => {
+                const docRef = doc(db, COLLECTIONS.STUDENTS, s.id);
+                batch.update(docRef, { orderNumber: s.orderNumber });
+            });
+            try {
+                await batch.commit();
+            } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify(true);
+            }
+        }
+
+        return this.getStudents();
     },
 
     async getAttendance(): Promise<AttendanceRecord[]> { return fetchBulkList('attendance', []); },
