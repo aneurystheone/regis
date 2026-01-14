@@ -5,7 +5,7 @@ export type View = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'REPORTS' | 'STUDEN
 export type FontSize = 'sm' | 'base' | 'lg';
 
 export const CURRENT_SCHEMA_VERSION = 1;
-export const APP_VERSION = 'v1.7.0 Build 0111.0205'; // mes.dia.hora.min
+export const APP_VERSION = 'v1.9.1 Build 0113.0905'; // mes.dia.hora.min
 
 export interface BaseEntity {
   schemaVersion?: number;
