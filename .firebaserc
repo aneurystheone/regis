@@ -1,6 +1,8 @@
 {
   "projects": {
-    "default": "teacher-productivity-kit"
+    "dev": "regis-dev-150626",
+    "prod": "teacher-productivity-kit",
+    "standby": "teacher-productivity-kit-bk1"
   },
   "targets": {
     "teacher-productivity-kit": {

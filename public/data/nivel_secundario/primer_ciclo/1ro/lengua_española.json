@@ -1,0 +1,113 @@
+{
+    "id": "nivel_secundario_1ro_lengua_espanola",
+    "level": "Nivel Secundario",
+    "grade": "1ro",
+    "subject": "Lengua Española",
+    "contents": [
+        {
+            "id": "LE-1-CONT-PER-C",
+            "text": "La noticia y el afiche: función, estructura, interrogantes, elementos paratextuales, oraciones coordinadas y subordinadas, conectores, sinónimos, tiempos verbales y recursos poéticos como metáforas y exageración.",
+            "type": "conceptual",
+            "topic": "Textos Periodísticos y Publicitarios"
+        },
+        {
+            "id": "LE-1-CONT-PER-P",
+            "text": "Comprensión y producción oral y escrita de noticias sobre temas sociales mundiales (economía, pobreza, política) y afiches, identificando la intención comunicativa y respondiendo a las interrogantes clave.",
+            "type": "procedimental",
+            "topic": "Textos Periodísticos y Publicitarios"
+        },
+        {
+            "id": "LE-1-CONT-PER-A",
+            "text": "Criticidad y veracidad en la narración de los hechos e interés por los problemas sociales del entorno.",
+            "type": "actitudinal",
+            "topic": "Textos Periodísticos y Publicitarios"
+        },
+        {
+            "id": "LE-1-CONT-EXP-C",
+            "text": "La guía turística y el informe de lectura: estructura, técnica de resumen, sustantivos, adjetivos, oraciones interrogativas y exclamativas, información gráfica, y conectores de ejemplificación.",
+            "type": "conceptual",
+            "topic": "Textos Descriptivos y Expositivos"
+        },
+        {
+            "id": "LE-1-CONT-EXP-P",
+            "text": "Comprensión y producción de guías turísticas para describir lugares de interés, y elaboración de informes de lectura aplicando reglas de omisión, selección, generalización y reconstrucción de textos narrativos.",
+            "type": "procedimental",
+            "topic": "Textos Descriptivos y Expositivos"
+        },
+        {
+            "id": "LE-1-CONT-EXP-A",
+            "text": "Respeto por la riqueza cultural al analizar textos, y valoración de la geografía, cultura y recursos del país.",
+            "type": "actitudinal",
+            "topic": "Textos Descriptivos y Expositivos"
+        },
+        {
+            "id": "LE-1-CONT-LIT-C",
+            "text": "El cuento policíaco y detectivesco: características, ambiente, trama, personajes, tipos de narrador, recursos literarios, actantes, verbos en pretérito y conectores.",
+            "type": "conceptual",
+            "topic": "Análisis y Producción Literaria"
+        },
+        {
+            "id": "LE-1-CONT-LIT-P",
+            "text": "Análisis y comprensión global de cuentos leídos o escuchados, identificando los personajes centrales, el ambiente, y los momentos de inicio, nudo y desenlace.",
+            "type": "procedimental",
+            "topic": "Análisis y Producción Literaria"
+        },
+        {
+            "id": "LE-1-CONT-LIT-A",
+            "text": "Disfrute, curiosidad y actitud reflexiva al analizar temas presentes en los textos narrativos literarios.",
+            "type": "actitudinal",
+            "topic": "Análisis y Producción Literaria"
+        }
+    ],
+    "competenciesSummary": [
+        {
+            "id": "CE1-LE-1RO",
+            "code": "CE1-LE",
+            "name": "Comunicativa",
+            "fundamentalId": "FC1",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE2-LE-1RO",
+            "code": "CE2-LE",
+            "name": "Pensamiento Lógico, Creativo y Crítico",
+            "fundamentalId": "FC2",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE3-LE-1RO",
+            "code": "CE3-LE",
+            "name": "Resolución de Problemas",
+            "fundamentalId": "FC3",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE4-LE-1RO",
+            "code": "CE4-LE",
+            "name": "Ética y Ciudadana",
+            "fundamentalId": "FC4",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE5-LE-1RO",
+            "code": "CE5-LE",
+            "name": "Científica y Tecnológica",
+            "fundamentalId": "FC5",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE6-LE-1RO",
+            "code": "CE6-LE",
+            "name": "Ambiental y de la Salud",
+            "fundamentalId": "FC6",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE7-LE-1RO",
+            "code": "CE7-LE",
+            "name": "Desarrollo Personal y Espiritual",
+            "fundamentalId": "FC7",
+            "evaluationGroup": "PC4"
+        }
+    ]
+}

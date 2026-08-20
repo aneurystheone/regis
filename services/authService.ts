@@ -1,5 +1,7 @@
 
-import { auth } from '../firebase';
+import { auth } from '../firebase-core';
+import { Capacitor } from '@capacitor/core';
+import { SocialLogin } from '@capgo/capacitor-social-login';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -7,9 +9,19 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
-  User as FirebaseUser
+  User as FirebaseUser,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
+  signInWithCredential,
+  sendPasswordResetEmail,
+  confirmPasswordReset,
+  deleteUser
 } from "firebase/auth";
 import { User } from '../types';
+
+import { clearAllLocalCache } from './localCache';
 
 // Store reference to the observer callback to trigger it manually if needed
 let authStateObserver: ((user: User | null) => void) | null = null;
@@ -107,7 +119,31 @@ export const authService = {
   async logout(): Promise<void> {
     try {
       isVirtualDemo = false;
+      
+      // Clear in-memory and IndexedDB local caches for data isolation
+      await clearAllLocalCache();
+      
+      // Preserve navigation history and theme preferences across logouts
+      const preservedKeys = ['teacherkit-isDarkMode', 'teacherkit-fontSize'];
+      const preservedValues = new Map<string, string>();
+      
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('regis_last_view_') || key.startsWith('regis_last_main_view_') || preservedKeys.includes(key))) {
+          const val = localStorage.getItem(key);
+          if (val !== null) {
+            preservedValues.set(key, val);
+          }
+        }
+      }
+
       localStorage.clear();
+      
+      // Restore preserved values
+      preservedValues.forEach((val, key) => {
+        localStorage.setItem(key, val);
+      });
+
       await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
@@ -117,8 +153,46 @@ export const authService = {
   // Social Login & Recovery
   async loginWithGoogle(): Promise<User | null> {
     try {
-      const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
+      // Capacitor native: use native plugin
+      if (Capacitor.isNativePlatform()) {
+        const loginResult = await SocialLogin.login({
+          provider: 'google',
+          options: {
+            scopes: ['email', 'profile'],
+          },
+        });
+        const idToken = (loginResult.result as any)?.idToken;
+        if (!idToken) throw new Error('No idToken returned from Google sign-in');
+        const credential = GoogleAuthProvider.credential(idToken);
+        const result = await signInWithCredential(auth, credential);
+        return {
+          id: result.user.uid,
+          name: result.user.displayName || 'Usuario',
+          email: result.user.email || '',
+          password: '' // Not applicable for OAuth
+        };
+      }
+
+      // Electron desktop: use IPC-based OAuth window (signInWithPopup fails from app:// scheme)
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.isElectron) {
+        const oauthResult = await (window as any).electronAPI.openOAuthWindow('google');
+        if (!oauthResult) {
+          // User closed the OAuth window — not an error
+          throw { code: 'auth/popup-closed-by-user', message: 'OAuth window was closed.' };
+        }
+        const credential = GoogleAuthProvider.credential(oauthResult.idToken);
+        const result = await signInWithCredential(auth, credential);
+        return {
+          id: result.user.uid,
+          name: result.user.displayName || 'Usuario',
+          email: result.user.email || '',
+          password: ''
+        };
+      }
+
+      // Web: standard popup flow
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
       return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
     } catch (error) {
@@ -129,7 +203,6 @@ export const authService = {
 
   async loginWithFacebook(): Promise<User | null> {
     try {
-      const { FacebookAuthProvider, signInWithPopup } = await import("firebase/auth");
       const provider = new FacebookAuthProvider();
       const result = await signInWithPopup(auth, provider);
       return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
@@ -141,7 +214,6 @@ export const authService = {
 
   async loginWithApple(): Promise<User | null> {
     try {
-      const { OAuthProvider, signInWithPopup } = await import("firebase/auth");
       const provider = new OAuthProvider('apple.com');
       const result = await signInWithPopup(auth, provider);
       return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
@@ -153,10 +225,29 @@ export const authService = {
 
   async resetPassword(email: string): Promise<void> {
     try {
-      const { sendPasswordResetEmail } = await import("firebase/auth");
       await sendPasswordResetEmail(auth, email);
     } catch (error) {
       console.error("Reset Password Error:", error);
+      throw error;
+    }
+  },
+
+  async confirmPasswordReset(code: string, newPass: string): Promise<void> {
+    try {
+      await confirmPasswordReset(auth, code, newPass);
+    } catch (error) {
+      console.error("Confirm Password Reset Error:", error);
+      throw error;
+    }
+  },
+
+  async deleteAccount(): Promise<void> {
+    try {
+      if (auth.currentUser) {
+        await deleteUser(auth.currentUser);
+      }
+    } catch (error) {
+      console.error("Delete Account Error:", error);
       throw error;
     }
   },

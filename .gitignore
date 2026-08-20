@@ -7,9 +7,8 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Dependencies & Local
+node_modules/
 *.local
 
 # Editor directories and files
@@ -17,8 +16,45 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+
+# Build outputs & packaging (Binarios pesados)
+dist/
+dist-ssr/
+release/
+build/
+*.exe
+*.apk
+*.aar
+.firebase/
+android/**/build/
+android/.gradle/
+android/local.properties
+
+# Environment files
+.env
+.env.*
+!.env.example
+.env.development
+.env.production
+.env.desktop
+.env.standby
+.env.yaml
+
+# Firebase Admin Service Account Keys (CRÍTICO: Nunca comitear a Git)
+scripts/*service-account*.json
+scripts/*Service-account*.json
+*service-account*.json
+*Service-account*.json
+
+# Firestore Backup Dumps
+*backup*.json
+*respaldo*.json
+firestore-backup*.json
+
+# Generated dev artifacts
+docs/generated/tasks/
+*.html.report
+reporte-*.html
+lighthouse-report.json
+
+

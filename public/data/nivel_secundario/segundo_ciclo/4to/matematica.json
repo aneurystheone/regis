@@ -1,0 +1,77 @@
+{
+    "id": "nivel_secundario_4to_matematica",
+    "level": "Nivel Secundario",
+    "grade": "4to",
+    "subject": "Matemática",
+    "contents": [
+        {
+            "id": "MAT-4-CONT-GEO-C",
+            "text": "Ángulos, sistemas de medidas, postulados, congruencia, paralelismo, perpendicularidad, polígonos, diagonales, perímetro. Triángulos: propiedades, congruencia, relación entre lados y ángulos, postulados (LLL, LAL y ALA). Circunferencia: propiedades y elementos. Volumen de poliedros y de cuerpos truncados. Transformaciones geométricas.",
+            "type": "conceptual",
+            "topic": "Geometría y Medición"
+        },
+        {
+            "id": "MAT-4-CONT-GEO-P",
+            "text": "Construcción y medición de ángulos, rectas paralelas, perpendiculares y transversales. Cálculo de ángulos y perímetro de polígonos. Aplicación de postulados de congruencia y teoremas fundamentales de los triángulos. Resolución de problemas con la circunferencia, transformaciones geométricas y cálculo de volumen de poliedros y cuerpos truncados.",
+            "type": "procedimental",
+            "topic": "Geometría y Medición"
+        },
+        {
+            "id": "MAT-4-CONT-GEO-A",
+            "text": "Curiosidad al aplicar conceptos de ángulos en situaciones diversas. Perseverancia en la resolución de problemas de polígonos. Disfrute al indagar sobre congruencia, entusiasmo en las aplicaciones de la circunferencia y autonomía en el cálculo de volúmenes de poliedros.",
+            "type": "actitudinal",
+            "topic": "Geometría y Medición"
+        }
+    ],
+    "competenciesSummary": [
+        {
+            "id": "CE1-MAT-4TO",
+            "code": "CE1-MAT",
+            "name": "Comunicativa",
+            "fundamentalId": "FC1",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE2-MAT-4TO",
+            "code": "CE2-MAT",
+            "name": "Pensamiento Lógico, Creativo y Crítico",
+            "fundamentalId": "FC2",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE3-MAT-4TO",
+            "code": "CE3-MAT",
+            "name": "Resolución de Problemas",
+            "fundamentalId": "FC3",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE4-MAT-4TO",
+            "code": "CE4-MAT",
+            "name": "Ética y Ciudadana",
+            "fundamentalId": "FC4",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE5-MAT-4TO",
+            "code": "CE5-MAT",
+            "name": "Científica y Tecnológica",
+            "fundamentalId": "FC5",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE6-MAT-4TO",
+            "code": "CE6-MAT",
+            "name": "Ambiental y de la Salud",
+            "fundamentalId": "FC6",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE7-MAT-4TO",
+            "code": "CE7-MAT",
+            "name": "Desarrollo Personal y Espiritual",
+            "fundamentalId": "FC7",
+            "evaluationGroup": "PC4"
+        }
+    ]
+}

@@ -123,7 +123,7 @@ export const RecycleBin: React.FC<RecycleBinProps> = ({
       {activeTab === 'students' && (
         <>
           {/* Table for Desktop */}
-          <div className="hidden md:block bg-white dark:bg-slate-800 rounded-xl shadow-md overflow-hidden">
+          <div className="hidden md:block bg-white dark:bg-slate-800 rounded-xl shadow-md overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
               <thead className="bg-slate-50 dark:bg-slate-700">
                 <tr>
@@ -222,7 +222,7 @@ export const RecycleBin: React.FC<RecycleBinProps> = ({
 
       {activeTab === 'classes' && (
         <>
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md overflow-hidden">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
               <thead className="bg-slate-50 dark:bg-slate-700">
                 <tr>

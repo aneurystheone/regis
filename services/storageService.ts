@@ -1,6 +1,7 @@
 
-import { storage } from '../firebase';
+import { storage } from '../firebase-storage';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { saveOfflineFile } from './offlineStorage';
 
 export const uploadFile = async (file: Blob | File, path: string): Promise<string> => {
   if (!storage) throw new Error("Storage not initialized. Check firebase.ts configuration.");
@@ -51,6 +52,31 @@ export const uploadFile = async (file: Blob | File, path: string): Promise<strin
       }
     );
   });
+};
+
+export const uploadFileWithOfflineFallback = async (file: Blob | File, path: string): Promise<string> => {
+  try {
+    // Attempt standard upload
+    // Reduce timeout for quicker fallback if latency is high but not strictly "offline"
+    // Actually, uploadFile has a 15s timeout. We might want to try it, and if it fails, go to offline.
+    // To handle "slow" connections that aren't offline, we rely on the uploadFile timeout.
+
+    // Check navigator online status first to fail fast
+    if (!navigator.onLine) {
+      console.log("Offline detected (navigator), switching to offline storage for file.");
+      return await saveOfflineFile(file);
+    }
+
+    return await uploadFile(file, path);
+  } catch (error) {
+    console.warn("Upload failed, falling back to offline storage:", error);
+    try {
+      return await saveOfflineFile(file);
+    } catch (offlineError) {
+      console.error("Offline storage also failed:", offlineError);
+      throw offlineError; // Throw the offline error to identify why fallback failed
+    }
+  }
 };
 
 // Helper to convert DataURL (Base64) to Blob for upload

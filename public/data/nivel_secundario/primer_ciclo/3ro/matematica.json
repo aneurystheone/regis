@@ -1,0 +1,95 @@
+{
+    "id": "nivel_secundario_3ro_matematica",
+    "level": "Nivel Secundario",
+    "grade": "3ro",
+    "subject": "Matemática",
+    "contents": [
+        {
+            "id": "MAT-3-CONT-ALG-C",
+            "text": "Polinomios, clasificación y operatoria. Factorización y casos. Productos y cocientes notables. Ecuaciones e inecuaciones de primer y segundo grado, sistemas de ecuaciones lineales. Concepto, dominio y rango de funciones (algebraica, exponencial y logarítmica). Valor absoluto.",
+            "type": "conceptual",
+            "topic": "Álgebra y Funciones"
+        },
+        {
+            "id": "MAT-3-CONT-ALG-P",
+            "text": "Obtención de resultados con operaciones de polinomios y casos de factorización. Resolución de ecuaciones, inecuaciones y sistemas de ecuaciones lineales con dos incógnitas. Análisis y cálculo de dominio, rango de funciones y valor absoluto de números reales.",
+            "type": "procedimental",
+            "topic": "Álgebra y Funciones"
+        },
+        {
+            "id": "MAT-3-CONT-ALG-A",
+            "text": "Disfrute al modelar y realizar operaciones con expresiones algebraicas. Interés en la resolución de ecuaciones y aprecio por el empleo de las funciones para interpretar y resolver problemas del contexto.",
+            "type": "actitudinal",
+            "topic": "Álgebra y Funciones"
+        },
+        {
+            "id": "MAT-3-CONT-EST-C",
+            "text": "Datos organizados en tablas de frecuencias para datos agrupados. Medidas de dispersión, diagramas de árbol y de probabilidades.",
+            "type": "conceptual",
+            "topic": "Estadística y Probabilidad"
+        },
+        {
+            "id": "MAT-3-CONT-EST-P",
+            "text": "Recolección y organización de datos agrupados. Cálculo elemental de medidas de dispersión (rango, desviación típica, desviación media y varianza). Construcción de diagramas de árbol y de probabilidad.",
+            "type": "procedimental",
+            "topic": "Estadística y Probabilidad"
+        },
+        {
+            "id": "MAT-3-CONT-EST-A",
+            "text": "Rigor y objetividad en el cálculo de las medidas de dispersión e interés en la representación de diagramas de probabilidad para el análisis estadístico.",
+            "type": "actitudinal",
+            "topic": "Estadística y Probabilidad"
+        }
+    ],
+    "competenciesSummary": [
+        {
+            "id": "CE1-MAT-3RO",
+            "code": "CE1-MAT",
+            "name": "Comunicativa",
+            "fundamentalId": "FC1",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE2-MAT-3RO",
+            "code": "CE2-MAT",
+            "name": "Pensamiento Lógico, Creativo y Crítico",
+            "fundamentalId": "FC2",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE3-MAT-3RO",
+            "code": "CE3-MAT",
+            "name": "Resolución de Problemas",
+            "fundamentalId": "FC3",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE4-MAT-3RO",
+            "code": "CE4-MAT",
+            "name": "Ética y Ciudadana",
+            "fundamentalId": "FC4",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE5-MAT-3RO",
+            "code": "CE5-MAT",
+            "name": "Científica y Tecnológica",
+            "fundamentalId": "FC5",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE6-MAT-3RO",
+            "code": "CE6-MAT",
+            "name": "Ambiental y de la Salud",
+            "fundamentalId": "FC6",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE7-MAT-3RO",
+            "code": "CE7-MAT",
+            "name": "Desarrollo Personal y Espiritual",
+            "fundamentalId": "FC7",
+            "evaluationGroup": "PC4"
+        }
+    ]
+}

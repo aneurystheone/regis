@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import type { Class, Competency } from '../types';
 import { PlusIcon, XIcon, BookOpenIcon, SearchIcon, PencilIcon, ExclamationIcon } from './icons';
 import { getCurriculumByGradeAndSubject, getCompetencyDetail } from '../services/curriculumService';
+import { useAlert } from '../contexts/ConfirmationContext';
 
 interface AddCompetencyModalProps {
     isOpen: boolean;
@@ -31,6 +33,7 @@ export const AddCompetencyModal: React.FC<AddCompetencyModalProps> = ({ isOpen, 
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [fetchError, setFetchError] = useState(false);
+    const alert = useAlert();
 
     // State for custom creation
     const [customName, setCustomName] = useState('');
@@ -119,27 +122,29 @@ export const AddCompetencyModal: React.FC<AddCompetencyModalProps> = ({ isOpen, 
 
         setIsLoading(true);
         try {
-            const promises = selectedCodes.map(code => getCompetencyDetail(code));
-            const results = await Promise.all(promises);
-
-            const competenciesToImport: Omit<Competency, 'id'>[] = results
-                .filter((c): c is NonNullable<typeof c> => c !== null)
+            // The competencies collection might not be populated in Firestore with the new curriculum schema.
+            // Using the available summary data from the curriculum manifest instead.
+            const competenciesToImport: Omit<Competency, 'id'>[] = selectedCodes
+                .map(code => availableCompetencies.find(c => c.code === code))
+                .filter((c): c is NonNullable<typeof c> => c !== undefined)
                 .map(c => ({
                     classId: currentClass.id,
                     fundamentalId: c.fundamentalId,
                     code: c.code,
                     name: c.name,
-                    description: c.description,
-                    indicators: c.indicators
+                    description: '',
+                    indicators: []
                 }));
 
             if (competenciesToImport.length > 0) {
                 onAddCompetencies(competenciesToImport);
                 onClose();
+            } else {
+                console.warn("No competencies mapped for import.");
             }
         } catch (error) {
             console.error("Error importing competencies:", error);
-            alert("Hubo un error al importar las competencias. Por favor, revise su conexión.");
+            await alert({ title: 'Error', message: 'Hubo un error al procesar las competencias seleccionadas.', type: 'danger' });
         } finally {
             setIsLoading(false);
         }
@@ -165,11 +170,28 @@ export const AddCompetencyModal: React.FC<AddCompetencyModalProps> = ({ isOpen, 
         onClose();
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4" aria-modal="true" role="dialog">
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl transform transition-all flex flex-col max-h-[90vh]" role="document">
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        onClick={onClose}
+                        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+                    />
+
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                        className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] relative z-10 overflow-hidden"
+                        role="dialog"
+                        aria-modal="true"
+                    >
                 <div className="flex-shrink-0 p-6 border-b border-slate-200 dark:border-slate-700">
                     <div className="flex justify-between items-start">
                         <div>
@@ -301,7 +323,9 @@ export const AddCompetencyModal: React.FC<AddCompetencyModalProps> = ({ isOpen, 
                         </div>
                     </form>
                 )}
-            </div>
-        </div>
+            </motion.div>
+        </motion.div>
+    )}
+</AnimatePresence>
     );
 };

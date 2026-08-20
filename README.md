@@ -25,18 +25,28 @@ View your app in AI Studio: https://ai.studio/apps/drive/1xIyvUsQn8BwO7qxai2XHV1
    `npx firebase deploy --only firestore:rules`
    `npx firebase deploy --only functions`
 
-old fundamental competencies: 
-const mockFundamentalCompetencies: FundamentalCompetency[] = [
-    { id: 'FC1', name: 'Ética y Ciudadana', description: 'Actúa con autonomía, responsabilidad y respeto a los principios éticos y democráticos.', group: 'G3' },
 
-    { id: 'FC2', name: 'Comunicativa', description: 'Expresa e interpreta conceptos, pensamientos, sentimientos y hechos de forma oral y escrita.', group: 'G1' },
+Script	Comando	Descripción
+dev	vite	Inicia el servidor de desarrollo local.
+build	vite build	Compila la aplicación para producción.
+preview	vite preview	Previsualiza la build de producción localmente.
+test	vitest	Ejecuta los tests unitarios.
 
-    { id: 'FC3', name: 'Pensamiento Lógico, Creativo y Crítico', description: 'Elabora y argumenta sus juicios y opiniones, y aborda la realidad de forma reflexiva.', group: 'G2' },
+test:ui	vitest --ui	Abre la interfaz gráfica de Vitest.
 
-    { id: 'FC4', name: 'Resolución de Problemas', description: 'Identifica y analiza problemas para generar soluciones efectivas y pertinentes.', group: 'G2' },
+deploy:dev	firebase deploy --project dev --config firebase.
 
-    { id: 'FC5', name: 'Científica y Tecnológica', description: 'Aplica el conocimiento científico y tecnológico para comprender y transformar la realidad.', group: 'G4' },
+dev.json	Despliega todo (hosting, rules, etc.) al entorno de desarrollo (gen-lang-client...).
 
-    { id: 'FC6', name: 'Ambiental y de la Salud', description: 'Adopta hábitos de vida saludable y actúa con responsabilidad ante el medio ambiente.', group: 'G4' },
-    
-    { id: 'FC7', name: 'Desarrollo Personal y Espiritual', description: 'Desarrolla una autoimagen equilibrada y una relación sana consigo mismo y con los demás.', group: 'G3' },
+deploy:rules:dev	firebase deploy --only firestore:rules --project dev ...	Despliega solo las reglas de Firestore a desarrollo.
+deploy:rules:prod	firebase deploy --only firestore:rules --project prod	Despliega solo las reglas de Firestore a producción.
+deploy:web:beta	firebase deploy --only hosting:beta --project prod	Despliega el hosting al target beta (en el proyecto prod).
+deploy:web:prod	firebase deploy --only hosting:pro --project prod	Despliega el hosting al target pro (producción final).
+
+## Documentation
+
+See the `docs/` directory for detailed documentation:
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System architecture & roadmap
+- [CHANGELOG.md](docs/CHANGELOG.md) — Version history
+- [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) — Deployment instructions
+- [OFFLINE_STRATEGY.md](docs/OFFLINE_STRATEGY.md) — Offline-first strategy

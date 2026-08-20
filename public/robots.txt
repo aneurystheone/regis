@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://regis-app.com/sitemap.xml

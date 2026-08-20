@@ -1,95 +1,83 @@
 
-import { db } from '../firebase';
+import { db } from '../firebase-firestore';
 import { doc, writeBatch, collection, getDocs, query, where, getDoc } from "firebase/firestore";
 import type { CurriculumData, FirestoreCurriculum, FirestoreCompetency, FirestoreIndicator } from '../types';
 
 // --- MIGRATION / SEEDER ---
 
 export const uploadCurriculumData = async () => {
-  if (!db) {
-      throw new Error("Firebase no está configurado. Revise firebase.ts.");
-  }
-
-  try {
-    console.log("Iniciando migración fragmentada...");
-    const batch = writeBatch(db);
-    let opCount = 0;
-    const MAX_BATCH_SIZE = 450;
-
-    // 1. Load Curriculums
-    const curriculumsRes = await fetch('/data/curriculums.json');
-    if (!curriculumsRes.ok) throw new Error('No se pudo leer data/curriculums.json');
-    const curriculums: FirestoreCurriculum[] = await curriculumsRes.json();
-
-    // 2. Load Competencies (Fragmented)
-    const competencyFiles = [
-        '/data/competencies_sociales.json',
-        '/data/competencies_sociales_sec_2ciclo.json',
-        '/data/competencies_matematica.json',
-        '/data/competencies_lengua.json',
-        '/data/competencies_naturales_sec_1ciclo.json',
-        // Add more as needed, failing silently if not found is safer for partial updates
-    ];
-
-    let allCompetencies: FirestoreCompetency[] = [];
-    for (const file of competencyFiles) {
-        try {
-            const res = await fetch(file);
-            if (res.ok) {
-                const comps: FirestoreCompetency[] = await res.json();
-                allCompetencies = [...allCompetencies, ...comps];
-            }
-        } catch (e) {
-            console.warn(`Skipping ${file}:`, e);
-        }
+    if (!db) {
+        throw new Error("Firebase no está configurado. Revise firebase.ts.");
     }
 
-    // 3. Process Curriculums
-    for (const curr of curriculums) {
-        const curriculumRef = doc(db, "curriculums", curr.id);
-        batch.set(curriculumRef, curr);
-        opCount++;
-    }
+    try {
+        console.log("🚀 Iniciando migración basada en manifiesto...");
+        const batch = writeBatch(db);
+        let opCount = 0;
+        const MAX_BATCH_SIZE = 450;
 
-    // 4. Process Competencies and Indicators
-    for (const comp of allCompetencies) {
-        // Create Competency Document
-        const compRef = doc(db, "competencies", comp.code);
-        batch.set(compRef, comp);
-        opCount++;
+        // 1. Load Manifest
+        const indexRes = await fetch('/data/index.json');
+        if (!indexRes.ok) throw new Error('No se pudo leer data/index.json');
+        const manifest: { curriculums: string[] } = await indexRes.json();
 
-        // Create Indicator Documents
-        if (comp.indicators) {
-            for (const ind of comp.indicators) {
-                const indRef = doc(db, "indicators", ind.id);
-                const indicatorData: FirestoreIndicator = {
-                    id: ind.id,
-                    text: ind.text,
-                    curriculumId: comp.curriculumId,
-                    competencyId: comp.code,
-                    grade: "", // These are derived in the types but not stored flat here usually, 
-                               // but let's keep it consistent with previous logic if possible.
-                               // Actually, curriculumId links it back.
-                    subject: ""
-                };
-                batch.set(indRef, indicatorData);
+        console.log(`📜 Manifiesto cargado. ${manifest.curriculums.length} archivos a procesar.`);
+
+        // 2. Iterate and Load Files
+        for (const filePath of manifest.curriculums) {
+            try {
+                console.log(`Processing: ${filePath}...`);
+                const res = await fetch(`/data/${filePath}`);
+                if (!res.ok) {
+                    console.warn(`⚠️ 404/Error fetching: ${filePath}`);
+                    continue;
+                }
+                const curr: FirestoreCurriculum = await res.json();
+
+                // Validate basic structure (optional but recommended)
+                if (!curr.id || !curr.contents || !curr.competenciesSummary) {
+                    console.warn(`⚠️ Invalid Schema in: ${filePath}. Skipping.`);
+                    continue;
+                }
+
+                // 3. Queue Curriculum Document
+                const curriculumRef = doc(db, "curriculums", curr.id);
+                batch.set(curriculumRef, curr, { merge: true });
                 opCount++;
+
+                // 4. Queue Competencies (Extracted from summary if needed, but usually strictly defined elsewhere)
+                // Note: In this new hierarchy, competencies might be embedded or linked. 
+                // The prompt implies we are seeding the curriculum document itself.
+                // If we need to seed "competencies" collection separately, we'd need full competency definitions.
+                // Assuming for this task we are storing the payload into 'curriculums' collection mainly.
+
+                // However, the previous logic also seeded 'competencies' and 'indicators' collections.
+                // If the new JSONs ONLY have 'competenciesSummary', we can't fully seed the 'competencies' collection 
+                // unless we fetch detailed competency files or if the new structure embeds them deeper.
+                // The provided example JSON has 'competenciesSummary' which lacks 'indicators' list detail.
+                // BUT, the prompt asked to Refactor "uploadCurriculumData".
+                // Let's stick to uploading the Curriculum object as the primary goal per the new schema.
+                // If the user wants to seed *detailed* competencies/indicators, they would need separate files or a richer JSON.
+                // For now, we strictly follow the manifest to seed valid FirestoreCurriculum objects.
+
+            } catch (e) {
+                console.error(`❌ Error parsing/processing ${filePath}:`, e);
             }
         }
 
-        if (opCount >= MAX_BATCH_SIZE) {
-            console.warn("Límite de batch alcanzado. Esto es una migración simple, por favor ejecute en chunks si falla.");
+        if (opCount > 0) {
+            await batch.commit();
+            console.log(`✅ ¡Proceso completado! ${opCount} documentos escritos/actualizados.`);
+        } else {
+            console.log("⚠️ No se encontraron documentos válidos para subir.");
         }
+
+        return true;
+
+    } catch (error) {
+        console.error("🔥 Error crítico durante la migración:", error);
+        throw error;
     }
-
-    await batch.commit();
-    console.log("¡Migración a Firestore completada con éxito!");
-    return true;
-
-  } catch (error) {
-    console.error("Error durante la migración:", error);
-    throw error;
-  }
 };
 
 // --- OPTIMIZED READ OPERATIONS ---
@@ -131,7 +119,7 @@ export const getCurriculumByGradeAndSubject = async (grade: string, subject: str
         let querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty && !grade.includes("Grado")) {
-             q = query(
+            q = query(
                 collection(db, "curriculums"),
                 where("grade", "==", `${grade} Grado`),
                 where("subject", "==", subject)
@@ -144,9 +132,49 @@ export const getCurriculumByGradeAndSubject = async (grade: string, subject: str
         }
         return null;
     } catch (error) {
-        console.error("Error fetching curriculum by grade/subject:", error);
-        return null;
+        console.error("Error fetching curriculum by grade/subject (Firestore):", error);
+        console.log("Attempting local fallback...");
+        return await _findLocalCurriculum(grade, subject);
     }
+};
+
+const _findLocalCurriculum = async (grade: string, subject: string): Promise<FirestoreCurriculum | null> => {
+    try {
+        const indexRes = await fetch('/data/index.json');
+        if (!indexRes.ok) return null;
+
+        const manifest: { curriculums: string[] } = await indexRes.json();
+
+        // Normalize strings for rough matching
+        const normGrade = grade.toLowerCase().replace(' ', '_');
+        const normSubject = subject.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ /g, '_'); // remove accents
+
+        // 1. Try to find by filename hint first (Optimization)
+        // e.g. "1ro" and "matematica" in "nivel_secundario/primer_ciclo/1ro/matematica.json"
+
+        // Simple heuristic: check if path contains grade (e.g. "1ro") and subject logic
+        // But subject might be mapped differently. Let's iterate but fetch only if filename looks promising or just iterate all for now since list is small.
+
+        for (const filePath of manifest.curriculums) {
+            const res = await fetch(`/data/${filePath}`);
+            if (!res.ok) continue;
+
+            const curr: FirestoreCurriculum = await res.json();
+
+            // Check exact match
+            if (curr.grade === grade && curr.subject === subject) {
+                return curr;
+            }
+
+            // Check sloppy match (e.g. "1ro de Secundaria" vs "1ro")
+            if (curr.grade.includes(grade) && curr.subject === subject) {
+                return curr;
+            }
+        }
+    } catch (e) {
+        console.error("Local fallback failed:", e);
+    }
+    return null;
 };
 
 export const searchIndicators = async (queryText: string): Promise<FirestoreIndicator[]> => {

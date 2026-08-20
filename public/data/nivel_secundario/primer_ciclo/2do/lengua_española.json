@@ -1,0 +1,113 @@
+{
+    "id": "nivel_secundario_2do_lengua_espanola",
+    "level": "Nivel Secundario",
+    "grade": "2do",
+    "subject": "Lengua Española",
+    "contents": [
+        {
+            "id": "LE-2-CONT-PER-C",
+            "text": "La noticia y la guía turística: función, estructura, oraciones coordinadas y subordinadas, elementos paratextuales, tiempos verbales y conectores espaciales y temporales [1, 2].",
+            "type": "conceptual",
+            "topic": "Textos Periodísticos y Turísticos"
+        },
+        {
+            "id": "LE-2-CONT-PER-P",
+            "text": "Comprensión y producción oral y escrita de noticias sobre temas sociales a nivel mundial, y guías turísticas sobre provincias, monumentos, ríos y playas del país [1, 3].",
+            "type": "procedimental",
+            "topic": "Textos Periodísticos y Turísticos"
+        },
+        {
+            "id": "LE-2-CONT-PER-A",
+            "text": "Interés y objetividad frente a los problemas sociales, y valoración consciente de la geografía, cultura y ecología dominicana al describir lugares de interés [1, 3, 4].",
+            "type": "actitudinal",
+            "topic": "Textos Periodísticos y Turísticos"
+        },
+        {
+            "id": "LE-2-CONT-EXP-C",
+            "text": "El artículo expositivo y el informe de lectura: modo de organización problema-solución, el resumen como estrategia, idea principal y secundaria, conectores de causa, efecto y finalidad [5, 6].",
+            "type": "conceptual",
+            "topic": "Textos Expositivos y de Análisis"
+        },
+        {
+            "id": "LE-2-CONT-EXP-P",
+            "text": "Comprensión y producción escrita de artículos expositivos acerca de problemas sociales relacionados con la realidad, y elaboración de informes de lectura resumiendo textos narrativos literarios [7, 8].",
+            "type": "procedimental",
+            "topic": "Textos Expositivos y de Análisis"
+        },
+        {
+            "id": "LE-2-CONT-EXP-A",
+            "text": "Disfrute y entusiasmo al leer el informe de lectura, tolerancia frente a diferentes puntos de vista, y capacidad reflexiva al analizar temas [9, 10].",
+            "type": "actitudinal",
+            "topic": "Textos Expositivos y de Análisis"
+        },
+        {
+            "id": "LE-2-CONT-LIT-C",
+            "text": "El cuento de amor y amistad y la décima espinela: esquema narrativo, personajes, verso octosílabo, figuras literarias como comparación, metáfora, paradoja, antítesis e ironía, e interjecciones [11-13].",
+            "type": "conceptual",
+            "topic": "Análisis y Producción Literaria"
+        },
+        {
+            "id": "LE-2-CONT-LIT-P",
+            "text": "Escritura creativa de cuentos de amor y amistad, e interpretación oral de décimas de poetas dominicanos, caribeños y latinoamericanos, verbalizando la rima y las figuras literarias [12, 14, 15].",
+            "type": "procedimental",
+            "topic": "Análisis y Producción Literaria"
+        },
+        {
+            "id": "LE-2-CONT-LIT-A",
+            "text": "Apreciación de emociones en textos narrativos amorosos, disfrute de la función lúdica y estética de la décima, y aprecio por la poesía popular y tradiciones orales [11, 15].",
+            "type": "actitudinal",
+            "topic": "Análisis y Producción Literaria"
+        }
+    ],
+    "competenciesSummary": [
+        {
+            "id": "CE1-LE-2DO",
+            "code": "CE1-LE",
+            "name": "Comunicativa",
+            "fundamentalId": "FC1",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE2-LE-2DO",
+            "code": "CE2-LE",
+            "name": "Pensamiento Lógico, Creativo y Crítico",
+            "fundamentalId": "FC2",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE3-LE-2DO",
+            "code": "CE3-LE",
+            "name": "Resolución de Problemas",
+            "fundamentalId": "FC3",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE4-LE-2DO",
+            "code": "CE4-LE",
+            "name": "Ética y Ciudadana",
+            "fundamentalId": "FC4",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE5-LE-2DO",
+            "code": "CE5-LE",
+            "name": "Científica y Tecnológica",
+            "fundamentalId": "FC5",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE6-LE-2DO",
+            "code": "CE6-LE",
+            "name": "Ambiental y de la Salud",
+            "fundamentalId": "FC6",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE7-LE-2DO",
+            "code": "CE7-LE",
+            "name": "Desarrollo Personal y Espiritual",
+            "fundamentalId": "FC7",
+            "evaluationGroup": "PC4"
+        }
+    ]
+}

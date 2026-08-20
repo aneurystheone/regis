@@ -1,0 +1,131 @@
+{
+    "id": "nivel_secundario_6to_matematica",
+    "level": "Nivel Secundario",
+    "grade": "6to",
+    "subject": "Matemática",
+    "contents": [
+        {
+            "id": "MAT-6-CONT-ALG-C",
+            "text": "Teoría de ecuaciones: teorema fundamental del álgebra. Ecuaciones exponenciales y logarítmicas. Inecuaciones cuadráticas. Sistemas de ecuaciones y de inecuaciones cuadráticas en dos variables.",
+            "type": "conceptual",
+            "topic": "Álgebra y Ecuaciones"
+        },
+        {
+            "id": "MAT-6-CONT-ALG-P",
+            "text": "Análisis de raíces de ecuaciones. Resolución de inecuaciones y sistemas cuadráticos en dos variables mediante métodos analíticos y gráficos. Uso de ecuaciones exponenciales y logarítmicas en la resolución de problemas.",
+            "type": "procedimental",
+            "topic": "Álgebra y Ecuaciones"
+        },
+        {
+            "id": "MAT-6-CONT-ALG-A",
+            "text": "Entusiasmo y objetividad al aplicar sistemas de ecuaciones cuadráticas, exponenciales y logarítmicas en la resolución de problemas con o sin el uso de herramientas tecnológicas.",
+            "type": "actitudinal",
+            "topic": "Álgebra y Ecuaciones"
+        },
+        {
+            "id": "MAT-6-CONT-FIN-C",
+            "text": "Sucesiones, progresiones aritméticas y geométricas. Valor actual a interés simple y compuesto. Tarjeta de crédito, diferencia entre saldo absoluto y saldo insoluto.",
+            "type": "conceptual",
+            "topic": "Sucesiones y Finanzas"
+        },
+        {
+            "id": "MAT-6-CONT-FIN-P",
+            "text": "Resolución de problemas de préstamos bancarios aplicando sucesiones. Cálculo del valor actual y análisis de situaciones diversas sobre el uso de tarjetas de crédito y cálculo de intereses.",
+            "type": "procedimental",
+            "topic": "Sucesiones y Finanzas"
+        },
+        {
+            "id": "MAT-6-CONT-FIN-A",
+            "text": "Responsabilidad e interés en la aplicación de sucesiones aritméticas y geométricas, así como conceptos financieros en situaciones de la vida diaria.",
+            "type": "actitudinal",
+            "topic": "Sucesiones y Finanzas"
+        },
+        {
+            "id": "MAT-6-CONT-COM-TRIG-C",
+            "text": "Números complejos en forma de par ordenado, binómica, polar y trigonométrica. Fórmulas de suma y diferencia de ángulos. Ángulo doble, triple y mitad. Ecuaciones e identidades trigonométricas pitagóricas.",
+            "type": "conceptual",
+            "topic": "Números Complejos y Trigonometría"
+        },
+        {
+            "id": "MAT-6-CONT-COM-TRIG-P",
+            "text": "Representación gráfica y resolución de problemas con números complejos. Demostración de fórmulas y resolución de ecuaciones e identidades trigonométricas.",
+            "type": "procedimental",
+            "topic": "Números Complejos y Trigonometría"
+        },
+        {
+            "id": "MAT-6-CONT-COM-TRIG-A",
+            "text": "Satisfacción e interés al trabajar en equipo proyectos que involucren números complejos, y valoración crítica al comprobar y resolver identidades y ecuaciones trigonométricas.",
+            "type": "actitudinal",
+            "topic": "Números Complejos y Trigonometría"
+        },
+        {
+            "id": "MAT-6-CONT-CALC-C",
+            "text": "Límites, derivadas e integrales simples. Concepto y propiedades del límite de funciones y sucesiones. Reglas de la derivada. Integrales definidas e indefinidas sencillas.",
+            "type": "conceptual",
+            "topic": "Cálculo Diferencial e Integral"
+        },
+        {
+            "id": "MAT-6-CONT-CALC-P",
+            "text": "Identificación, análisis y cálculo de diferentes tipos de límites. Cálculo de derivadas e integrales (definidas e indefinidas) de funciones usando sus respectivas reglas, y su aplicación en la resolución de problemas del contexto.",
+            "type": "procedimental",
+            "topic": "Cálculo Diferencial e Integral"
+        },
+        {
+            "id": "MAT-6-CONT-CALC-A",
+            "text": "Interés en el cálculo de límites de funciones algebraicas y satisfacción al resolver problemas del contexto que impliquen derivadas e integrales.",
+            "type": "actitudinal",
+            "topic": "Cálculo Diferencial e Integral"
+        }
+    ],
+    "competenciesSummary": [
+        {
+            "id": "CE1-MAT-6TO",
+            "code": "CE1-MAT",
+            "name": "Comunicativa",
+            "fundamentalId": "FC1",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE2-MAT-6TO",
+            "code": "CE2-MAT",
+            "name": "Pensamiento Lógico, Creativo y Crítico",
+            "fundamentalId": "FC2",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE3-MAT-6TO",
+            "code": "CE3-MAT",
+            "name": "Resolución de Problemas",
+            "fundamentalId": "FC3",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE4-MAT-6TO",
+            "code": "CE4-MAT",
+            "name": "Ética y Ciudadana",
+            "fundamentalId": "FC4",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE5-MAT-6TO",
+            "code": "CE5-MAT",
+            "name": "Científica y Tecnológica",
+            "fundamentalId": "FC5",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE6-MAT-6TO",
+            "code": "CE6-MAT",
+            "name": "Ambiental y de la Salud",
+            "fundamentalId": "FC6",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE7-MAT-6TO",
+            "code": "CE7-MAT",
+            "name": "Desarrollo Personal y Espiritual",
+            "fundamentalId": "FC7",
+            "evaluationGroup": "PC4"
+        }
+    ]
+}

@@ -1,0 +1,12 @@
+{
+    "curriculums": [
+        "nivel_secundario/primer_ciclo/1ro/matematica.json",
+        "nivel_secundario/primer_ciclo/2do/matematica.json",
+        "nivel_secundario/primer_ciclo/3ro/matematica.json",
+        "nivel_secundario/segundo_ciclo/4to/matematica.json",
+        "nivel_secundario/segundo_ciclo/5to/matematica.json",
+        "nivel_secundario/segundo_ciclo/6to/matematica.json",
+        "nivel_secundario/primer_ciclo/1ro/lengua_española.json",
+        "nivel_secundario/primer_ciclo/2do/lengua_española.json"
+    ]
+}

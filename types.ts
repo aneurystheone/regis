@@ -1,15 +1,25 @@
 
 
-export type View = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'REPORTS' | 'STUDENT_PROFILE' | 'GRADEBOOK_GRADES' | 'GRADEBOOK_INSTRUMENTS' | 'GRADEBOOK_COMPETENCIES' | 'SETTINGS' | 'SETTINGS_APPEARANCE' | 'SETTINGS_AI' | 'SETTINGS_RECYCLE_BIN' | 'TEACHER_PROFILE' | 'CALENDAR' | 'CLASSES' | 'LESSON_PLANNER';
+export type View = 'DASHBOARD' | 'COURSE_DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'REPORTS' | 'STUDENT_PROFILE' | 'GRADEBOOK_GRADES' | 'GRADEBOOK_INSTRUMENTS' | 'GRADEBOOK_COMPETENCIES' | 'SETTINGS' | 'SETTINGS_APPEARANCE' | 'SETTINGS_AI' | 'SETTINGS_RECYCLE_BIN' | 'SETTINGS_SUBSCRIPTION' | 'SUBSCRIPTION' | 'TEACHER_PROFILE' | 'CALENDAR' | 'CLASSES' | 'LESSON_PLANNER' | 'ADMIN_DASHBOARD' | 'VICENTE_CHAT';
 
 export type FontSize = 'sm' | 'base' | 'lg';
 
 export const CURRENT_SCHEMA_VERSION = 1;
-export const APP_VERSION = 'v1.9.1 Build 0113.0905'; // mes.dia.hora.min
+export const APP_VERSION = 'v1.8.6 Build 0808.0300'; // mes.dia.hora.min
 
 export interface BaseEntity {
   schemaVersion?: number;
   userId?: string;
+  updatedAt?: string; // ISO String for last-write-wins resolution
+}
+
+export interface SchoolGroup extends BaseEntity {
+  id: string;
+  name: string; // e.g. "Grupo A - Primaria"
+  grade: string;
+  section: string;
+  schoolYear: string;
+  level?: string;
 }
 
 export interface Class extends BaseEntity {
@@ -17,16 +27,22 @@ export interface Class extends BaseEntity {
   name: string; // Subject name, e.g., "Matemática"
   grade: string;
   section: string; // e.g., "A", "B", "C"
+  groupId?: string; // Link to a shared group of students
   schoolYear: string; // e.g., "2024-2025"
   schedule: string; // e.g., "Lunes y Miércoles 9:00 - 10:30 AM"
   color: string; // e.g., '#ef4444' for styling
   level?: string; // e.g., "Nivel Primario"
+  teacher?: string; // e.g., "Juan Pérez"
 }
 
 export interface Student extends BaseEntity {
   id: string;
-  classId: string;
-  name: string;
+  enrollmentId?: string; // Matricula (Student ID visible to user)
+  classId: string; // Takes precedence if groupId is missing, or used as fallback
+  groupId?: string; // If present, student belongs to this group
+  name: string; // Kept for backward compatibility (firstName + ' ' + lastName)
+  firstName?: string;
+  lastName?: string;
   orderNumber?: number;
   avatar: string;
   gender: 'M' | 'F';
@@ -57,6 +73,15 @@ export interface Student extends BaseEntity {
   };
 }
 
+export interface WorkTeam extends BaseEntity {
+  id: string;
+  classId: string;
+  groupId?: string;
+  name: string;
+  color?: string;
+  studentIds: string[];
+}
+
 export enum AttendanceStatus {
   PRESENT = 'Presente',
   ABSENT = 'Ausente',
@@ -64,13 +89,15 @@ export enum AttendanceStatus {
   EXCUSED = 'Excusa',
 }
 
-export interface AttendanceRecord {
+export interface AttendanceRecord extends BaseEntity {
+  id?: string;
   studentId: string;
+  classId?: string; // Context of the attendance (subject-specific)
   date: string; // YYYY-MM-DD
   status: AttendanceStatus;
 }
 
-export interface DailyNote {
+export interface DailyNote extends BaseEntity {
   id: string;
   classId: string;
   date: string; // YYYY-MM-DD
@@ -93,7 +120,7 @@ export type CompetencyGroup = 'G1' | 'G2' | 'G3' | 'G4';
 export type PrimarioCompetencyGroup = 'GP1' | 'GP2' | 'GP3'; // Primario uses 3 groups
 
 
-export interface FundamentalCompetency {
+export interface FundamentalCompetency extends BaseEntity {
   id: string;
   name: string;
   description: string;
@@ -107,19 +134,21 @@ export enum AchievementLevel {
   EXEMPLARY = 'Excelente',
 }
 
-export interface Competency {
+export interface Competency extends BaseEntity {
   id: string;
   classId: string;
   fundamentalId: string;
   code: string; // e.g., CE-LEI4
   name: string;
   description: string;
+  evaluationGroup?: 'PC1' | 'PC2' | 'PC3' | 'PC4' | 'GP1' | 'GP2' | 'GP3';
   indicators: { id: string; text: string; }[];
 }
 
 export interface Criterion {
   id: string;
   text: string;
+  maxPoints?: number; // Max points for this individual criterion
 }
 
 export type InstrumentType = 'Prueba Corta' | 'Examen' | 'Tarea' | 'Participación' | 'Proyecto' | 'Lista de Cotejo';
@@ -133,21 +162,29 @@ export interface EvaluationInstrument extends BaseEntity {
   totalPoints: number;
   competencyIds: string[];
   period: EvaluationPeriod;
+  syncGroupId?: string;
   contenidos?: string;
   actividades?: string;
   criteria?: Criterion[];
 }
 
 export interface Grade extends BaseEntity {
-  id: string; // Composite key: studentId_instrumentId
+  id: string; // Historically studentId_instrumentId, will transition to studentId
   studentId: string;
   instrumentId: string;
   score: number | null; // null for not yet graded
   criteriaScores?: Record<string, boolean | number | null>; // { criterionId: score }
-  userId?: string;
+  updatedAt?: string | any; // ISO string or Firestore Timestamp
 }
 
-export interface RecoveryGrade {
+export interface GradeDocument {
+  userId: string;
+  score: number | null;
+  criteriaScores?: Record<string, boolean | number | null>;
+  updatedAt: any; // serverTimestamp()
+}
+
+export interface RecoveryGrade extends BaseEntity {
   id: string;
   studentId: string;
   classId: string;
@@ -158,6 +195,15 @@ export interface RecoveryGrade {
 
 
 // Teacher Profile Types
+export interface OnboardingMissions {
+  profileSetup: boolean;
+  classesCreated: boolean;
+  studentsImported: boolean;
+  firstAttendance: boolean;
+  firstInstrument: boolean;
+  firstReport: boolean;
+}
+
 export interface TeacherProfileData extends BaseEntity {
   name: string;
   email: string;
@@ -165,13 +211,21 @@ export interface TeacherProfileData extends BaseEntity {
   specialization: string;
   experienceYears: number;
   profilePictureUrl: string;
+  acquisitionChannel?: string;
+  regional?: string;
+  district?: string;
+  schoolName?: string;
+  schoolId?: string;
+  schoolCode?: string;
   _isFallback?: boolean;
+  onboardingMissions?: OnboardingMissions;
 }
 
 export interface JournalEntry {
   id: string;
   date: string; // ISO string
   content: string;
+  classId?: string; // Optional association with a class/course
 }
 
 export interface Resource {
@@ -209,6 +263,54 @@ export interface AIFeatures {
   vicenteAssistant: boolean; // "Vicente Dashboard"
 }
 
+// Subscription Types (Premium Account System)
+export type SubscriptionTier = 'free' | 'premium';
+export type SubscriptionStatus = 'active' | 'trial' | 'expired' | 'cancelled';
+export type SubscriptionSource = 'manual' | 'stripe' | 'appstore' | 'playstore';
+
+export interface UserSubscription {
+  tier: SubscriptionTier;
+  status: SubscriptionStatus;
+  expiresAt: string | null; // ISO string or null for lifetime
+  createdAt: string;
+  updatedAt: string;
+  source: SubscriptionSource;
+  grandfathered?: boolean; // True if user had >6 classes before limit enforcement
+  referralCode?: string; // Unique referral code for this Docente (e.g. REGIS-DOC-8K9P)
+  referredBy?: string; // UID of referrer Docente if claimed
+  referralClaimed?: boolean; // True if this Docente has claimed a referral code
+  referralsCount?: number; // Number of successful referrals completed
+  // Usage tracking for free tier limits
+  usage?: {
+    studentExtractions?: {
+      count: number;
+      lastReset: string; // ISO string of last monthly reset
+    };
+  };
+}
+
+export interface ReferralRecord {
+  id: string;
+  referrerUid: string;
+  referredUid: string;
+  code: string;
+  rewardDays: number;
+  status: 'rewarded' | 'rejected' | 'pending';
+  createdAt: string;
+}
+
+
+export interface PricingPlan {
+  id: 'free' | 'premium_monthly';
+  name: string;
+  tier: SubscriptionTier;
+  price: number; // USD
+  interval: 'month' | null;
+  stripePriceId?: string; // Stripe Price ID
+  features: string[];
+}
+
+
 // Lesson Planner Types
 export interface LessonActivity {
   time: string;
@@ -228,18 +330,28 @@ export interface LessonPlan {
 // --- Firestore Optimized Curriculum Structures ---
 
 // Collection: /curriculums
+export interface CurriculumContent {
+  id: string;
+  text: string;
+  type: 'conceptual' | 'procedimental' | 'actitudinal'; // Ahora obligatorio para IA
+  topic: string; // Agrupador temático
+}
+
+export interface CompetencySummary {
+  id: string;
+  code: string;
+  name: string;
+  fundamentalId: string;
+  evaluationGroup: 'PC1' | 'PC2' | 'PC3' | 'PC4' | 'GP1' | 'GP2' | 'GP3'; // Campo para Registro de Grado
+}
+
 export interface FirestoreCurriculum {
   id: string; // e.g., "primario_5to_lengua"
   level: string;
   grade: string;
   subject: string;
-  contents: { id: string; text: string }[]; // Aggregated Grade-level contents
-  competenciesSummary: {
-    id: string;
-    code: string;
-    name: string;
-    fundamentalId: string;
-  }[];
+  contents: CurriculumContent[]; // Aggregated Grade-level contents
+  competenciesSummary: CompetencySummary[];
 }
 
 // Collection: /competencies
@@ -293,3 +405,66 @@ export interface CurriculumLevel {
 export interface CurriculumData {
   levels: CurriculumLevel[];
 }
+
+// --- Academic Summary (Registro de Grado) ---
+export interface GradeSummary {
+  // Promedios por Grupo de Competencia (PC1-PC4 para Secundaria, GP1-GP3 para Primaria)
+  competencyGroups: {
+    PC1?: number;
+    PC2?: number;
+    PC3?: number;
+    PC4?: number;
+    GP1?: number;
+    GP2?: number;
+    GP3?: number;
+  };
+  // Detalle para trazabilidad (opcional pero recomendado)
+  specificCompetencies?: { [competencyId: string]: number };
+  periodAverage: number; // (PC1+PC2+PC3+PC4) / 4
+  rp?: number | null; // Recuperación Pedagógica
+}
+
+export interface StudentAcademicSummary {
+  id?: string; // Usually studentId
+  studentId: string;
+  periods: {
+    P1?: GradeSummary;
+    P2?: GradeSummary;
+    P3?: GradeSummary;
+    P4?: GradeSummary;
+  };
+  finalScore: number; // Promedio anual
+  updatedAt: string;
+}
+
+// Utility Type for Validation
+export type CurriculumValidator = (data: any) => data is FirestoreCurriculum;
+
+export interface OnboardingData {
+  experience: string;
+  referral: string;
+  regional: string;
+  district: string;
+  schoolName: string;
+  level: 'primario' | 'secundario';
+  subjects: string[];
+  goal: string;
+  scheduleImage: string | null;
+  extractedCourses: Array<{ name: string; grade: string; section?: string; schedule?: string }>;
+}
+
+export interface ElectronAPI {
+  isElectron: boolean;
+  getPlatform: () => string;
+  minimize?: () => void;
+  maximize?: () => void;
+  close?: () => void;
+  isMaximized?: () => Promise<boolean>;
+}
+
+declare global {
+  interface Window {
+    electronAPI?: ElectronAPI;
+  }
+}
+

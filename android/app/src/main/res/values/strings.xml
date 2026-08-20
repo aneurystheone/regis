@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">regis</string>
+    <string name="title_activity_main">regis</string>
+    <string name="package_name">com.aneurys.regis</string>
+    <string name="custom_url_scheme">com.aneurys.regis</string>
+    <string name="server_client_id">261771410586-tmgjtmojp2q6nsa8patp070aa9aq8r8i.apps.googleusercontent.com</string>
+</resources>

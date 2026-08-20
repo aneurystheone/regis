@@ -3,15 +3,15 @@ import React, { useMemo } from 'react';
 interface AvatarProps {
     name: string;
     src?: string | null;
-    size?: 'sm' | 'md' | 'lg' | 'xl';
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
     className?: string;
     status?: 'online' | 'offline';
 }
 
 const colors = [
-    'bg-blue-500', 'bg-green-500', 'bg-red-500', 'bg-yellow-500',
-    'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500',
-    'bg-orange-500', 'bg-cyan-500'
+    'bg-blue-700', 'bg-green-700', 'bg-red-700', 'bg-yellow-700',
+    'bg-purple-700', 'bg-pink-700', 'bg-indigo-700', 'bg-teal-700',
+    'bg-orange-700', 'bg-cyan-700'
 ];
 
 export const Avatar: React.FC<AvatarProps> = ({ name, src, size = 'md', className = '', status }) => {
@@ -19,7 +19,8 @@ export const Avatar: React.FC<AvatarProps> = ({ name, src, size = 'md', classNam
 
     const initials = useMemo(() => {
         if (!name) return '??';
-        const parts = name.split(' ');
+        const parts = name.trim().split(/\s+/).filter(p => p.length > 0);
+        if (parts.length === 0) return '??';
         if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
         return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }, [name]);
@@ -38,6 +39,7 @@ export const Avatar: React.FC<AvatarProps> = ({ name, src, size = 'md', classNam
     }, [src]);
 
     const sizeClasses = {
+        xs: 'w-6 h-6 text-[10px]',
         sm: 'w-8 h-8 text-xs',
         md: 'w-10 h-10 text-sm',
         lg: 'w-16 h-16 text-xl',

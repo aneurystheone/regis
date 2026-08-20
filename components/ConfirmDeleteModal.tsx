@@ -13,18 +13,18 @@ interface ConfirmDeleteModalProps {
   icon?: React.ReactNode;
 }
 
-export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
-  title, 
+export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
   message,
   confirmButtonText = 'Eliminar',
   confirmButtonIcon = <TrashIcon className="w-4 h-4 mr-2" />,
   confirmButtonClassName = 'bg-red-600 text-white hover:bg-red-700',
   icon = (
     <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-        <ExclamationIcon className="h-6 w-6 text-red-600" />
+      <ExclamationIcon className="h-6 w-6 text-red-600" />
     </div>
   )
 }) => {
@@ -33,7 +33,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex justify-center items-center" aria-modal="true" role="dialog">
+    <div className="fixed inset-0 bg-black/50 z-[70] flex justify-center items-center backdrop-blur-sm" aria-modal="true" role="dialog">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 w-full max-w-md m-4 transform transition-all" role="document">
         <div className="flex justify-between items-start mb-4">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{title}</h2>

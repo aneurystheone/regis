@@ -1,0 +1,23 @@
+{
+    "id": "TEMPLATE_ID_ASIGNATURA",
+    "level": "Nivel Secundario/Primario",
+    "grade": "X",
+    "subject": "NOMBRE_ASIGNATURA",
+    "contents": [
+        {
+            "id": "TEMPLATE-CONT-01",
+            "text": "Ejemplo de contenido conceptual...",
+            "type": "conceptual",
+            "topic": "Nombre del Eje Temático"
+        }
+    ],
+    "competenciesSummary": [
+        {
+            "id": "CE-TEMPLATE-01",
+            "code": "CODIGO_OFICIAL",
+            "name": "Nombre Competencia",
+            "fundamentalId": "FC1",
+            "evaluationGroup": "PC1"
+        }
+    ]
+}

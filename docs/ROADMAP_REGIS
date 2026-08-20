@@ -1,0 +1,106 @@
+ROADMAP REGIS
+Desarrollo + Adopción Masiva (12–18 meses)
+FASE 0 — BASE CONSOLIDADA (AHORA – 1 mes)
+Objetivo: que REGIS sea incuestionablemente confiable.
+Desarrollo
+● Congelar flujos UX validados (asistencia, calificador, reportes)
+● Estabilizar navegación (back, CTA, headers contextuales)
+● Copy claro en acciones críticas
+● Métricas mínimas de uso (login, guardar, volver)
+● Backup y monitoreo básico Firestore
+Producto
+● Beta cerrada (≤15 docentes)
+● Cero features nuevas
+● Solo corrección y refinamiento
+KPI clave
+● Docentes activos ≥ 40–50% semanal
+● Uso en días distintos (no solo prueba)
+👉 Riesgo si se salta esta fase: crecimiento sobre base inestable.
+FASE 1 — BETA AMPLIADA CONTROLADA (2–3
+meses)
+Objetivo: validación en contextos reales diversos.
+Desarrollo
+● Optimización performance PWA
+● Mejoras offline edge-cases
+● UI final de dashboards
+● Exportes/reportes 100% confiables
+Producto
+● Ampliar a 50–100 docentes
+● Diferentes centros / niveles
+● Canal formal de feedback
+Negocio
+● Definir propuesta de valor clara:
+“REGIS ahorra X horas al mes al docente”
+KPI clave
+● Retención 30 días
+● Uso recurrente sin acompañamiento
+👉 Aquí se decide si REGIS escala o se estanca.
+FASE 2 — LANZAMIENTO PÚBLICO DOCENTE (4–6
+meses)
+Objetivo: adopción orgánica entre docentes.
+Desarrollo
+● Activar IA selectiva y asistida:
+○ Criterios de evaluación
+○ Resúmenes pedagógicos
+● Onboarding guiado
+● Centro de ayuda ligero
+Producto
+● Plan gratuito funcional (core)
+● Plan pago (tiempo + valor):
+○ IA
+○ Reportes avanzados
+○ Soporte prioritario
+Distribución
+● Boca a boca docente
+● WhatsApp
+● Demostraciones simples
+● Nada de marketing pesado
+KPI clave
+● Conversión free → pago
+● Docentes recomendando a otros
+👉 Moat inicial: hábito + tiempo ahorrado.
+FASE 3 — INTEGRACIONES DE COMUNICACIÓN (6–9
+meses)
+Objetivo: aumentar dependencia del ecosistema.
+Desarrollo
+● Integración WhatsApp:
+○ Padres: notificaciones
+○ Estudiantes: consignas, recordatorios
+● Agente IA (“Vicente” u otro):
+○ Explicaciones
+○ Recordatorios
+○ Resúmenes
+Producto
+● REGIS deja de ser solo “registro”
+● Se convierte en hub operativo del aula
+KPI clave
+● Uso semanal
+● Docentes que no quieren volver atrás
+👉 Aquí REGIS se vuelve difícil de reemplazar.
+FASE 4 — ECOSISTEMA EDUCATIVO (9–18 meses)
+Objetivo: expansión estratégica, no masiva sin control.
+Desarrollo
+● App para estudiantes (lúdica, tipo “misiones”)
+● Integración con estándares curriculares
+● Analítica pedagógica
+Producto
+● Ecosistema:
+○ Docente (REGIS)
+○ Estudiante (gamificado)
+○ Padre (informativo)
+Estrategia
+● Alianzas institucionales
+● Pilotos con centros
+● No competir frontalmente con el Estado: complementar
+KPI clave
+● Centros completos usando REGIS
+● Contratos institucionales
+RESUMEN EJECUTIVO (1 línea por fase)
+● Fase 0: estabilidad
+● Fase 1: validación amplia
+● Fase 2: monetización docente
+● Fase 3: dependencia del ecosistema
+● Fase 4: expansión estructural
+Advertencia clave (como cofundador)
+El mayor riesgo de REGIS no es la competencia.
+Es querer llegar a la Fase 4 sin dominar la Fase 1.

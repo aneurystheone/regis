@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { auth } from '../firebase';
+import { auth } from '../firebase-core';
 import { onIdTokenChanged } from 'firebase/auth';
 
 export const useAdmin = () => {
@@ -29,9 +29,8 @@ export const useAdmin = () => {
                 const tokenResult = await user.getIdTokenResult();
                 // Check custom claim 'admin' OR fallback to hardcoded email for current transition
                 const hasClaim = !!tokenResult.claims.admin;
-                const isSuperUser = user.email === 'aneurystheone@gmail.com';
 
-                setIsAdmin(hasClaim || isSuperUser);
+                setIsAdmin(hasClaim);
             } catch (error) {
                 console.error("Error checking admin claim:", error);
                 setIsAdmin(false);

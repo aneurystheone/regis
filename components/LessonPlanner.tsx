@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import type { LessonPlan, Class, LessonActivity, AIFeatures } from '../types';
-import { PlusIcon, PencilIcon, TrashIcon, SparklesIcon, XIcon, CalendarIcon, BookOpenIcon, DownloadIcon } from './icons';
+import type { LessonPlan, Class, LessonActivity, AIFeatures, View } from '../types';
+import { PlusIcon, PencilIcon, TrashIcon, SparklesIcon, XIcon, CalendarIcon, BookOpenIcon, DownloadIcon, StarIcon } from './icons';
 import { generateLessonPlan } from '../services/geminiService';
 import { jsPDF } from 'jspdf';
+import { useCanUseAI } from '../contexts/SubscriptionContext';
 
 // Extend jsPDF type if needed, or use as is
 
@@ -13,9 +14,13 @@ interface LessonPlannerProps {
   onUpdateLessonPlan: (id: string, plan: Omit<LessonPlan, 'id'>) => void;
   onDeleteLessonPlan: (id: string) => void;
   aiFeatures: AIFeatures;
+  onNavigate?: (view: View) => void;
 }
 
-export const LessonPlanner: React.FC<LessonPlannerProps> = ({ classes, lessonPlans, onAddLessonPlan, onUpdateLessonPlan, onDeleteLessonPlan, aiFeatures }) => {
+export const LessonPlanner: React.FC<LessonPlannerProps> = ({ classes, lessonPlans, onAddLessonPlan, onUpdateLessonPlan, onDeleteLessonPlan, aiFeatures, onNavigate }) => {
+  // Premium subscription gating
+  const canUseLessonPlanning = useCanUseAI('lessonPlanning');
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
 
@@ -122,7 +127,7 @@ export const LessonPlanner: React.FC<LessonPlannerProps> = ({ classes, lessonPla
                     </div>
                   </div>
                 </div>
-                {aiFeatures.lessonPlanning && (
+                {canUseLessonPlanning ? (
                   <button onClick={handleGenerate} disabled={isGenerating || !topic}
                     className="w-full md:w-auto flex items-center justify-center bg-brand-accent text-brand-primary font-black py-4 px-8 rounded-2xl hover:bg-emerald-400 transition-all shadow-lg shadow-brand-accent/20 disabled:opacity-50 group">
                     {isGenerating ? <div className="w-6 h-6 border-4 border-brand-primary/30 border-t-brand-primary rounded-full animate-spin" /> : (
@@ -131,6 +136,18 @@ export const LessonPlanner: React.FC<LessonPlannerProps> = ({ classes, lessonPla
                         Preguntar a Vicente
                       </>
                     )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      onNavigate?.('SUBSCRIPTION');
+                    }}
+                    className="w-full md:w-auto flex items-center justify-center bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black py-4 px-6 rounded-2xl hover:from-amber-500 hover:to-amber-600 transition-all shadow-lg shadow-amber-400/20 group"
+                  >
+                    <StarIcon className="w-5 h-5 mr-2 text-slate-950" />
+                    Obtener Plan Pro para IA
                   </button>
                 )}
               </div>

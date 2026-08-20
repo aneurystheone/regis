@@ -9,9 +9,10 @@ export const VicenteSyncAlert: React.FC = () => {
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
-        const unsubscribe = syncEvents.subscribe((error) => {
-            setHasSyncError(error);
-            if (error) setIsVisible(true);
+        const unsubscribe = syncEvents.subscribe((status) => {
+            const hasError = status === 'error';
+            setHasSyncError(hasError);
+            if (hasError) setIsVisible(true);
         });
         return unsubscribe;
     }, []);

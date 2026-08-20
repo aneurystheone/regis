@@ -24,11 +24,11 @@ service firebase.storage {
       return request.resource.size < 5 * 1024 * 1024; // 5MB
     }
 
-    // User Data Isolation
-    // All user files must be in users/{userId}/...
+    // User Data Isolation — all user files must live under users/{userId}/...
     match /users/{userId}/{allPaths=**} {
-      // Only the owner can read/write their files
-      allow read, write: if isOwner(userId);
+      allow read: if isOwner(userId);
+      // Enforce content-type and 5 MB size limit on every upload
+      allow write: if isOwner(userId) && isSmallFile() && (isImage() || isAudio());
     }
 
     // Explicitly deny everything else to prevent leaks

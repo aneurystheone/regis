@@ -28,18 +28,18 @@ export const ClassSelector: React.FC<ClassSelectorProps> = ({ classes, selectedC
   };
 
   return (
-    <div className={className}>
+    <div className={`${className} bg-white dark:bg-slate-800 rounded-xl`}>
       {label && <label htmlFor="class-selector" className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1.5">{label}</label>}
-      <div className="relative group">
+      <div className="relative group rounded-xl">
         <select
           id="class-selector"
           value={selectedClassId}
           onChange={(e) => onSelectClass(e.target.value)}
-          className={`appearance-none w-full bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent shadow-sm transition-all hover:border-indigo-300 dark:hover:border-indigo-700 cursor-pointer border-slate-200 dark:border-slate-700 ${sizeClasses[size]}`}
+          className={`appearance-none w-full bg-transparent text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent shadow-sm transition-all hover:border-indigo-300 dark:hover:border-indigo-700 cursor-pointer border-slate-200 dark:border-slate-700 rounded-[inherit] ${sizeClasses[size]}`}
           aria-label="Seleccionar clase"
         >
           {classes.map(c => (
-            <option key={c.id} value={c.id}>
+            <option key={c.id} value={c.id} className="bg-white dark:bg-slate-800">
                 {c.grade.replace(' Grado', '')} {c.section} - {c.name}
             </option>
           ))}

@@ -1,0 +1,113 @@
+{
+    "id": "nivel_secundario_5to_matematica",
+    "level": "Nivel Secundario",
+    "grade": "5to",
+    "subject": "Matemática",
+    "contents": [
+        {
+            "id": "MAT-5-CONT-CON-C",
+            "text": "Ecuaciones de las cónicas: recta, circunferencia, parábola, elipse, hipérbola y sus elementos.",
+            "type": "conceptual",
+            "topic": "Cónicas"
+        },
+        {
+            "id": "MAT-5-CONT-CON-P",
+            "text": "Análisis e interpretación de la ecuación de la recta. Resolución de problemas del contexto que impliquen las cónicas y sus elementos.",
+            "type": "procedimental",
+            "topic": "Cónicas"
+        },
+        {
+            "id": "MAT-5-CONT-CON-A",
+            "text": "Disfrute y curiosidad en la resolución de problemas que implique la ecuación de la recta y análisis de las cónicas.",
+            "type": "actitudinal",
+            "topic": "Cónicas"
+        },
+        {
+            "id": "MAT-5-CONT-VEC-MAT-C",
+            "text": "Diferencia entre un vector y una matriz, característica de una matriz, tipos de matrices, operaciones entre matrices. Determinantes. Matriz inversa.",
+            "type": "conceptual",
+            "topic": "Vectores y Matrices"
+        },
+        {
+            "id": "MAT-5-CONT-VEC-MAT-P",
+            "text": "Clasificación, notación y representación de vectores. Identificación sobre los tipos de matrices. Operaciones con vectores y matrices. Resolución de problemas del contexto que impliquen vectores y matrices.",
+            "type": "procedimental",
+            "topic": "Vectores y Matrices"
+        },
+        {
+            "id": "MAT-5-CONT-VEC-MAT-A",
+            "text": "Disfrute del trabajo en equipo con vectores y matrices. Respeto a sus compañeros en la solución de problemas de la vida diaria.",
+            "type": "actitudinal",
+            "topic": "Vectores y Matrices"
+        },
+        {
+            "id": "MAT-5-CONT-TRIG-C",
+            "text": "Origen y desarrollo de la trigonometría. Funciones trigonométricas. Ley de los senos y cosenos, resolución de triángulos rectángulos y oblicuángulos. Identidades trigonométricas pitagóricas.",
+            "type": "conceptual",
+            "topic": "Trigonometría"
+        },
+        {
+            "id": "MAT-5-CONT-TRIG-P",
+            "text": "Aplicación de la ley del seno y ley del coseno a situaciones de la vida diaria. Resolución de triángulos rectángulos y oblicuángulos. Demostración de las funciones trigonométricas de ángulos notables y especiales. Representación gráfica de funciones trigonométricas. Comprobación de identidades trigonométricas pitagóricas.",
+            "type": "procedimental",
+            "topic": "Trigonometría"
+        },
+        {
+            "id": "MAT-5-CONT-TRIG-A",
+            "text": "Valoración del conocimiento histórico de la trigonometría. Entusiasmo al aplicar las funciones trigonométricas en la resolución de problemas de la cotidianidad. Actitud crítica en la aplicación de sus conocimientos sobre la Ley de senos y cosenos.",
+            "type": "actitudinal",
+            "topic": "Trigonometría"
+        }
+    ],
+    "competenciesSummary": [
+        {
+            "id": "CE1-MAT-5TO",
+            "code": "CE1-MAT",
+            "name": "Comunicativa",
+            "fundamentalId": "FC1",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE2-MAT-5TO",
+            "code": "CE2-MAT",
+            "name": "Pensamiento Lógico, Creativo y Crítico",
+            "fundamentalId": "FC2",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE3-MAT-5TO",
+            "code": "CE3-MAT",
+            "name": "Resolución de Problemas",
+            "fundamentalId": "FC3",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE4-MAT-5TO",
+            "code": "CE4-MAT",
+            "name": "Ética y Ciudadana",
+            "fundamentalId": "FC4",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE5-MAT-5TO",
+            "code": "CE5-MAT",
+            "name": "Científica y Tecnológica",
+            "fundamentalId": "FC5",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE6-MAT-5TO",
+            "code": "CE6-MAT",
+            "name": "Ambiental y de la Salud",
+            "fundamentalId": "FC6",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE7-MAT-5TO",
+            "code": "CE7-MAT",
+            "name": "Desarrollo Personal y Espiritual",
+            "fundamentalId": "FC7",
+            "evaluationGroup": "PC4"
+        }
+    ]
+}

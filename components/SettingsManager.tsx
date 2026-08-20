@@ -3,6 +3,11 @@ import { SunIcon, MoonIcon } from './icons';
 import { type FontSize, type AIFeatures, type Student, type Class, APP_VERSION } from '../types';
 import { RecycleBin } from './RecycleBin';
 import { useAdmin } from '../hooks/useAdmin';
+import { PricingPlans } from './PricingPlans';
+import { SubscriptionManager } from './SubscriptionManager';
+import { MONETIZATION_ENABLED } from '../config/phases';
+import { useRemoteConfig } from '../hooks/useRemoteConfig';
+import { useConfirm, usePrompt } from '../contexts/ConfirmationContext';
 
 // Lazy load Admin components
 const AISettings = React.lazy(() => import('./admin/AISettings'));
@@ -23,6 +28,10 @@ interface SettingsManagerProps {
     deletedClasses?: Class[];
     onRestoreClass?: (classId: string) => void;
     onPermanentDeleteClass?: (cls: Class) => void;
+    onPermanentDeleteBulk?: (students: Student[]) => void;
+    onPermanentDeleteClassesBulk?: (classes: Class[]) => void;
+    onDeleteAccount: () => void;
+    initialTab?: 'appearance' | 'subscription' | 'ai' | 'recycle_bin' | 'account';
 }
 
 const FontSizeButton: React.FC<{
@@ -55,10 +64,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
     onPermanentDelete,
     deletedClasses = [],
     onRestoreClass,
-    onPermanentDeleteClass
+    onPermanentDeleteClass,
+    onPermanentDeleteBulk,
+    onPermanentDeleteClassesBulk,
+    onDeleteAccount,
+    initialTab = 'appearance'
 }) => {
-    const [activeTab, setActiveTab] = useState<'appearance' | 'ai' | 'recycle_bin'>('appearance');
+    const [activeTab, setActiveTab] = useState<'appearance' | 'subscription' | 'recycle_bin' | 'account'>(initialTab);
     const { isAdmin, loading: adminLoading } = useAdmin();
+    const { monetizationEnabled } = useRemoteConfig();
+    const isMonetizationEnabled = monetizationEnabled ?? MONETIZATION_ENABLED;
+    const confirm = useConfirm();
+    const prompt = usePrompt();
 
     return (
         <div className="p-4 sm:p-8">
@@ -70,19 +87,26 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                     >
                         Apariencia
                     </button>
-                    {!adminLoading && isAdmin && (
+                    {isMonetizationEnabled && (
                         <button
-                            onClick={() => setActiveTab('ai')}
-                            className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'ai' ? 'bg-white dark:bg-slate-700 text-brand-primary shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                            onClick={() => setActiveTab('subscription')}
+                            className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'subscription' ? 'bg-white dark:bg-slate-700 text-brand-primary shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                         >
-                            Inteligencia Artificial
+                            Suscripción
                         </button>
                     )}
+
                     <button
                         onClick={() => setActiveTab('recycle_bin')}
                         className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'recycle_bin' ? 'bg-white dark:bg-slate-700 text-brand-primary shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                     >
                         Papelera
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('account')}
+                        className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'account' ? 'bg-white dark:bg-slate-700 text-brand-primary shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                    >
+                        Cuenta
                     </button>
                 </div>
 
@@ -133,8 +157,14 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                                             <p className="text-sm text-slate-500 dark:text-slate-400">Borra todos los cambios locales y recarga el perfil original.</p>
                                         </div>
                                         <button
-                                            onClick={() => {
-                                                if (confirm('¿Estás seguro de que quieres restablecer todos los datos del demo? Se perderán todos tus cambios locales.')) {
+                                            onClick={async () => {
+                                                const isConfirmed = await confirm({
+                                                    title: 'Restablecer Demo',
+                                                    message: '¿Estás seguro de que quieres restablecer todos los datos del demo? Se perderán todos tus cambios locales.',
+                                                    type: 'danger',
+                                                    confirmText: 'Restablecer',
+                                                });
+                                                if (isConfirmed) {
                                                     localStorage.clear();
                                                     window.location.reload();
                                                 }
@@ -145,6 +175,19 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                                         </button>
                                     </div>
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Subscription Section */}
+                    {isMonetizationEnabled && activeTab === 'subscription' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6 tracking-tight">Suscripción</h2>
+                            <div className="space-y-6">
+                                <SubscriptionManager />
+                                <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                                    <PricingPlans />
+                                </div>
                             </div>
                         </div>
                     )}
@@ -169,7 +212,57 @@ export const SettingsManager: React.FC<SettingsManagerProps> = ({
                                     deletedClasses={deletedClasses}
                                     onRestoreClass={onRestoreClass}
                                     onPermanentDeleteClass={onPermanentDeleteClass}
+                                    onPermanentDeleteBulk={onPermanentDeleteBulk}
+                                    onPermanentDeleteClassesBulk={onPermanentDeleteClassesBulk}
                                 />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Account Section */}
+                    {activeTab === 'account' && (
+                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6 tracking-tight">Cuenta</h2>
+
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md border border-slate-100 dark:border-slate-700 space-y-6">
+                                <div className="border-l-4 border-rose-500 bg-rose-50 dark:bg-rose-900/20 p-4 rounded-r-lg">
+                                    <h3 className="text-lg font-bold text-rose-700 dark:text-rose-400">Zona de Peligro</h3>
+                                    <p className="text-sm text-rose-600/80 dark:text-rose-400/80 mt-1 mb-4">
+                                        Estas acciones son destructivas y no se pueden deshacer.
+                                    </p>
+
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h4 className="font-bold text-slate-800 dark:text-slate-200">Eliminar Cuenta</h4>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">Elimina permanentemente tu cuenta y todos tus datos.</p>
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                const isConfirmed = await confirm({
+                                                    title: 'Eliminar Cuenta',
+                                                    message: '¿ESTÁS SEGURO? Esta acción eliminará permanentemente tu cuenta y TODOS tus datos. No se puede deshacer.',
+                                                    type: 'danger',
+                                                    confirmText: 'Continuar',
+                                                });
+                                                if (isConfirmed) {
+                                                    const verification = await prompt({
+                                                        title: 'Confirmación requerida',
+                                                        message: 'Para confirmar, escribe "ELIMINAR" en mayúsculas:',
+                                                        promptPlaceholder: 'ELIMINAR',
+                                                        type: 'danger',
+                                                        confirmText: 'Confirmar eliminación'
+                                                    });
+                                                    if (verification === 'ELIMINAR') {
+                                                        onDeleteAccount();
+                                                    }
+                                                }
+                                            }}
+                                            className="px-4 py-2 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 transition-colors"
+                                        >
+                                            Eliminar Cuenta
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}

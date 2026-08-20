@@ -77,6 +77,18 @@ export const ProfileDropdownMenu: React.FC<ProfileDropdownMenuProps> = ({
                 <span>Agenda</span>
             </button>
 
+            {/* Suscripción */}
+            <button
+                onClick={() => handleNavigate('SUBSCRIPTION')}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold transition-colors ${currentView === 'SUBSCRIPTION'
+                    ? 'bg-brand-primary/10 text-brand-primary dark:text-brand-secondary'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }`}
+            >
+                <SparklesIcon className="w-5 h-5 text-amber-500" />
+                <span>Suscripción</span>
+            </button>
+
             {/* Ajustes */}
             <button
                 onClick={() => handleNavigate('SETTINGS')}

@@ -1,13 +1,16 @@
 
-import React, { useState, useEffect } from 'react';
-import { PlusIcon, XIcon, ExclamationIcon } from './icons';
-import type { Class } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { PlusIcon, XIcon, ExclamationIcon, UserGroupIcon, LinkIcon } from './icons';
+import { api } from '../services/api';
+import type { Class, SchoolGroup } from '../types';
 
 interface AddClassModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddClass: (name: string, grade: string, section: string, schoolYear: string, level: string) => void;
+  onAddClass: (name: string, grade: string, section: string, schoolYear: string, level: string, groupId?: string, upgradeClassId?: string) => void;
   classes: Class[];
+  userGroups?: SchoolGroup[];
 }
 
 // Subjects for Nivel Primario - in specific order
@@ -45,7 +48,7 @@ const levels = ['Nivel Primario', 'Nivel Secundario'];
 const grades = ['1ro', '2do', '3ro', '4to', '5to', '6to'];
 const sections = ['A', 'B', 'C', 'D', 'E', 'F'];
 
-export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onAddClass, classes }) => {
+export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, onAddClass, classes, userGroups = [] }) => {
   const [level, setLevel] = useState('Nivel Primario');
   const [subject, setSubject] = useState(primarioSubjects[0]);
   const [grade, setGrade] = useState('1ro');
@@ -59,7 +62,6 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
   // Generate dynamic school years
   const years = React.useMemo(() => {
     const currentYear = new Date().getFullYear();
-    // Generate a range of years around current year
     const list = [];
     for (let i = -1; i < 4; i++) {
       const start = currentYear + i - 1;
@@ -68,13 +70,19 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
     return list;
   }, []);
 
+  // School Groups Logic
+  const [globalGroups, setGlobalGroups] = useState<SchoolGroup[]>([]);
+
+  const allGroups = useMemo(() => {
+    return [...userGroups, ...globalGroups];
+  }, [userGroups, globalGroups]);
+
   useEffect(() => {
     if (isOpen) {
-      // Set default year relative to current month
+      api.getGroups().then(setGlobalGroups).catch(console.error);
+
       const now = new Date();
       const currentY = now.getFullYear();
-      // If month is after June, academic year starts this year (e.g., Aug 2024 -> 2024-2025)
-      // If month is before July, academic year started previous year (e.g., Feb 2025 -> 2024-2025)
       const startYear = now.getMonth() > 5 ? currentY : currentY - 1;
       setSchoolYear(`${startYear}-${startYear + 1}`);
 
@@ -90,9 +98,8 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
     e.preventDefault();
     setError(null);
 
-    if (subject.trim() && grade.trim() && section.trim() && schoolYear.trim() && level.trim()) {
+    if ((subject?.trim() || '') && (grade?.trim() || '') && (section?.trim() || '') && (schoolYear?.trim() || '') && (level?.trim() || '')) {
 
-      // Check for duplicates
       const isDuplicate = classes.some(c =>
         c.name === subject &&
         c.grade === grade &&
@@ -106,136 +113,162 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
         return;
       }
 
-      onAddClass(subject, grade, section, schoolYear, level);
+      const exactGroup = allGroups.find(g =>
+        g.grade === grade && g.section === section && g.schoolYear === schoolYear && (!g.level || g.level === level)
+      );
+
+      const potentialClass = classes.find(c =>
+        c.grade === grade && c.section === section && c.schoolYear === schoolYear && !c.groupId && (!c.level || c.level === level)
+      );
+
+      const finalGroupId = exactGroup ? exactGroup.id : undefined;
+      const finalUpgradeClassId = !exactGroup && potentialClass ? potentialClass.id : undefined;
+
+      onAddClass(subject, grade, section, schoolYear, level, finalGroupId, finalUpgradeClassId);
       onClose();
     }
   };
 
-  if (!isOpen) {
-    return null;
-  }
-
   const inputBaseClasses = "w-full px-3 py-2 text-base border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-200 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500";
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center" aria-modal="true" role="dialog">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-8 w-full max-w-lg m-4 transform transition-all" role="document">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Añadir Nueva Clase</h2>
-          <button onClick={onClose} className="p-1 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white transition-colors" aria-label="Cerrar modal">
-            <XIcon className="w-6 h-6" />
-          </button>
-        </div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+          />
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-200 rounded-lg flex items-center text-sm">
-            <ExclamationIcon className="w-5 h-5 mr-2 flex-shrink-0" />
-            {error}
-          </div>
-        )}
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-8 w-full max-w-lg m-4 relative z-10 overflow-hidden"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Añadir Nueva Clase</h2>
+              <button onClick={onClose} className="p-1 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-800 dark:text-slate-300 dark:hover:text-white transition-colors" aria-label="Cerrar modal">
+                <XIcon className="w-6 h-6" />
+              </button>
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="class-level" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-                Nivel
-              </label>
-              <select
-                id="class-level"
-                value={level}
-                onChange={(e) => {
-                  const newLevel = e.target.value;
-                  setLevel(newLevel);
-                  // Reset subject to first available when level changes
-                  const newSubjects = newLevel === 'Nivel Primario' ? primarioSubjects : secundarioSubjects;
-                  setSubject(newSubjects[0]);
-                }}
-                className={inputBaseClasses}
-                required
-              >
-                {levels.map(l => <option key={l} value={l}>{l}</option>)}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="class-subject" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-                Asignatura
-              </label>
-              <select
-                id="class-subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className={inputBaseClasses}
-                required
-              >
-                {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
+            {error && (
+              <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-200 rounded-lg flex items-center text-sm">
+                <ExclamationIcon className="w-5 h-5 mr-2 flex-shrink-0" />
+                {error}
+              </div>
+            )}
 
-          <div>
-            <label htmlFor="class-grade" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-              Grado
-            </label>
-            <select
-              id="class-grade"
-              value={grade}
-              onChange={(e) => setGrade(e.target.value)}
-              className={inputBaseClasses}
-              required
-            >
-              {grades.map(g => <option key={g} value={g}>{g}</option>)}
-            </select>
-          </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="class-level" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    Nivel
+                  </label>
+                  <select
+                    id="class-level"
+                    value={level}
+                    onChange={(e) => {
+                      const newLevel = e.target.value;
+                      setLevel(newLevel);
+                      const newSubjects = newLevel === 'Nivel Primario' ? primarioSubjects : secundarioSubjects;
+                      setSubject(newSubjects[0]);
+                    }}
+                    className={inputBaseClasses}
+                    required
+                  >
+                    {levels.map(l => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="class-subject" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    Asignatura
+                  </label>
+                  <select
+                    id="class-subject"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className={inputBaseClasses}
+                    required
+                  >
+                    {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="class-section" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-                Sección
-              </label>
-              <select
-                id="class-section"
-                value={section}
-                onChange={(e) => setSection(e.target.value)}
-                className={inputBaseClasses}
-                required
-              >
-                {sections.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="class-year" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
-                Año Escolar
-              </label>
-              <select
-                id="class-year"
-                value={schoolYear}
-                onChange={(e) => setSchoolYear(e.target.value)}
-                className={inputBaseClasses}
-                required
-              >
-                {years.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="flex justify-end gap-4 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-slate-200 text-slate-800 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-200 dark:hover:bg-slate-500 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="flex items-center bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm disabled:bg-slate-400"
-              disabled={!subject.trim() || !grade.trim() || !schoolYear.trim() || !section.trim()}
-            >
-              <PlusIcon className="w-5 h-5 mr-2" />
-              Añadir Clase
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div>
+                  <label htmlFor="class-grade" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    Grado
+                  </label>
+                  <select
+                    id="class-grade"
+                    value={grade}
+                    onChange={(e) => setGrade(e.target.value)}
+                    className={inputBaseClasses}
+                    required
+                  >
+                    {grades.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="class-section" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    Sección
+                  </label>
+                  <select
+                    id="class-section"
+                    value={section}
+                    onChange={(e) => setSection(e.target.value)}
+                    className={inputBaseClasses}
+                    required
+                  >
+                    {sections.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label htmlFor="class-year" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    Año Escolar
+                  </label>
+                  <select
+                    id="class-year"
+                    value={schoolYear}
+                    onChange={(e) => setSchoolYear(e.target.value)}
+                    className={inputBaseClasses}
+                    required
+                  >
+                    {years.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="bg-slate-200 text-slate-800 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 dark:bg-slate-600 dark:text-slate-200 dark:hover:bg-slate-500 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm disabled:bg-slate-400"
+                  disabled={!(subject?.trim()) || !(grade?.trim()) || !(schoolYear?.trim()) || !(section?.trim())}
+                >
+                  <PlusIcon className="w-5 h-5 mr-2" />
+                  Añadir Clase
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

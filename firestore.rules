@@ -12,7 +12,7 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return request.auth.token.admin == true || request.auth.token.email == 'aneurystheone@gmail.com';
+      return request.auth.token.admin == true;
     }
 
     function isDemoTemplate(data) {
@@ -24,51 +24,204 @@ service cloud.firestore {
 
     // 1. Teacher Profile
     match /teacher_profile/{uid} {
-      allow read: if isSignedIn() && (uid == request.auth.uid || resource == null);
+      allow read: if isSignedIn() && (uid == request.auth.uid || isAdmin() || resource == null);
       allow write: if isOwner(uid);
     }
     
-    // 2. Standard Shared Collections (By userId field)
-    match /{collectionName}/{docId} {
+    // 2. Bulk Lists (Special document ID format)
+    match /lists/{listDocId} {
       allow read: if isSignedIn() && (
-        collectionName in ['classes', 'students', 'deleted_students', 'deleted_classes', 'instruments', 'anecdotes', 'user_competencies', 'journal', 'resources', 'custom_events', 'lesson_plans', 'grades', 'attendance'] &&
-        (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data))
+        listDocId == "grades_" + request.auth.uid || 
+        listDocId == "attendance_" + request.auth.uid ||
+        listDocId == "daily_notes_" + request.auth.uid ||
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        isAdmin()
       );
-      
       allow write: if isSignedIn() && (
-        collectionName in ['classes', 'students', 'deleted_students', 'deleted_classes', 'instruments', 'anecdotes', 'user_competencies', 'journal', 'resources', 'custom_events', 'lesson_plans', 'grades', 'attendance'] &&
+        listDocId == "grades_" + request.auth.uid || 
+        listDocId == "attendance_" + request.auth.uid ||
+        listDocId == "daily_notes_" + request.auth.uid ||
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid) ||
+        isAdmin()
+      ) && request.resource.data.items.size() <= 600; // Limit to 600 items (buffer for 500 limit)
+    }
+
+    // 2. Standard Collections (By userId field)
+    match /classes/{docId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+      allow write: if isSignedIn() && (
         (resource == null || resource.data.userId == request.auth.uid) &&
         (request.resource == null || request.resource.data.userId == request.auth.uid)
       );
     }
-    
-    // 3. Bulk Lists (Special document ID format)
-    match /lists/{listDocId} {
-      allow read: if isSignedIn();
+
+    match /students/{docId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
       allow write: if isSignedIn() && (
-        listDocId.contains(request.auth.uid) || 
-        (resource != null && resource.data.userId == request.auth.uid)
+        (resource == null || resource.data.userId == request.auth.uid) &&
+        (request.resource == null || request.resource.data.userId == request.auth.uid)
       );
+
+      // Access to subcollections (e.g., academic/summary)
+      // Reads and writes strictly scoped to student owner, demo template, or admin
+      match /{allChildren=**} {
+         allow read: if isSignedIn() && (
+           resource == null ||
+           get(/databases/$(database)/documents/students/$(docId)).data.userId == request.auth.uid ||
+           get(/databases/$(database)/documents/students/$(docId)).data.userId == 'DEMO_PROFILE_TEMPLATE' ||
+           isAdmin()
+         );
+         allow write: if isSignedIn() && (
+           resource == null ||
+           get(/databases/$(database)/documents/students/$(docId)).data.userId == request.auth.uid ||
+           isAdmin()
+         );
+      }
     }
     
-    // Specific Rules for detailed control or exceptions
-    
-    // Users Collection (Private Profile)
-    match /users/{userId} {
-      allow read, write: if isOwner(userId);
+    // Fallback for other collections in the list
+    match /{collectionName}/{docId} {
+        allow read: if isSignedIn() && (
+          collectionName in ['deleted_students', 'deleted_classes', 'user_competencies', 'resources', 'custom_events', 'lesson_plans', 'attendance', 'daily_notes', 'recovery_grades', 'school_groups', 'teams'] &&
+          (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data))
+        );
+        allow write: if isSignedIn() && (
+          collectionName in ['deleted_students', 'deleted_classes', 'user_competencies', 'resources', 'custom_events', 'lesson_plans', 'attendance', 'daily_notes', 'recovery_grades', 'school_groups', 'teams'] &&
+          (resource == null || resource.data.userId == request.auth.uid) &&
+          (request.resource == null || request.resource.data.userId == request.auth.uid)
+        );
     }
 
-    // App Configuration
+    // --- Anecdotes (Strict Size Limits) ---
+    match /anecdotes/{docId} {
+       allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+       allow write: if isSignedIn() && (
+         (resource == null || resource.data.userId == request.auth.uid) &&
+         (request.resource == null || request.resource.data.userId == request.auth.uid) &&
+         // Limit note content to 10KB to prevent abuse
+         (request.resource.data.note.size() < 10240)
+       );
+    }
+
+    // --- Journal (Strict Size Limits) ---
+    match /journal/{docId} {
+       allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+       allow write: if isSignedIn() && (
+         (resource == null || resource.data.userId == request.auth.uid) &&
+         (request.resource == null || request.resource.data.userId == request.auth.uid) &&
+         // Limit journal content to 20KB
+         (request.resource.data.content.size() < 20480)
+       );
+    }
+
+    // ... (Instruments & Grades) ...
+
+    match /instruments/{instId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+      allow write: if isSignedIn() && (
+        (resource == null || resource.data.userId == request.auth.uid) &&
+        (request.resource == null || request.resource.data.userId == request.auth.uid)
+      );
+
+      // Grades Subcollection (instruments/{instId}/grades)
+      // Strictly validate parent instrument ownership before granting access
+      match /grades/{gradeId} {
+        allow read, write: if isSignedIn() && get(/databases/$(database)/documents/instruments/$(instId)).data.userId == request.auth.uid;
+
+        // Nested subcollections (e.g., /history) also require instrument ownership
+        match /{allPaths=**} {
+           allow read, write: if isSignedIn() && get(/databases/$(database)/documents/instruments/$(instId)).data.userId == request.auth.uid;
+        }
+      }
+
+      // History sidecar at instrument level — owner only
+      match /history/{docId} {
+        allow read, write: if isSignedIn() && get(/databases/$(database)/documents/instruments/$(instId)).data.userId == request.auth.uid;
+      }
+    }
+
+    // --- System Logs (Telemetry) ---
+    match /system_logs/{docId} {
+      // Users can only create logs, never read/update/delete (Write-only for users)
+      allow create: if isSignedIn() && 
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.keys().hasAny(['errorCode', 'type']) &&
+                    request.resource.data.keys().hasAll(['timestamp']); 
+      allow read, update, delete: if isSignedIn() && isAdmin();
+    }
+
+    // --- Usage Sessions (Analytics) ---
+    match /usage_sessions/{sessionId} {
+      // Admins can read all sessions for analytics dashboard
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        sessionId.matches(request.auth.uid + '.*') ||
+        (resource != null && resource.data.userId == request.auth.uid)
+      );
+      
+      // Users can only write their own sessions
+      allow write: if isSignedIn() && (
+        sessionId.size() > 0 && sessionId.split('_')[0] == request.auth.uid
+      );
+    }
+
+    // --- App Config (AI Features, Version) ---
+    // global_ai_features and global_config are readable without auth so the app
+    // can check version / feature flags before the user signs in.
     match /app_config/global_ai_features {
-      // Everyone can read features (to respect settings)
-      allow read: if true; 
-      // Only admins can change them
+      allow read: if true;
+      allow write: if isSignedIn() && isAdmin();
+    }
+    match /app_config/global_config {
+      allow read: if true;
+      allow write: if isSignedIn() && isAdmin();
+    }
+    // All other app_config docs require sign-in
+    match /app_config/{docId} {
+      allow read: if isSignedIn();
       allow write: if isSignedIn() && isAdmin();
     }
 
-    match /app_config/global_config {
-      // Version and build info should be public so users can be prompted to update
-      allow read: if true;
+    // --- Feedback ---
+    match /feedback/{feedbackId} {
+      // Rate limiting should be handled via App Check or Cloud Functions in the future
+      // strict validation: max 2KB message
+      allow create: if isSignedIn() && 
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.message.size() < 2048;
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow update, delete: if isSignedIn() && isAdmin();
+    }
+
+    // --- Subscriptions ---
+    match /subscriptions/{subId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || subId == request.auth.uid || isAdmin());
+      // Security fix: Only Admin SDK/Admins can write subscription documents, but owners can:
+      // 1. Create their own subscription with 'free' tier
+      // 2. Update their own subscription only for safe/non-billing fields (e.g. usage, referralCode)
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (subId == request.auth.uid && request.resource.data.tier == 'free')
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (subId == request.auth.uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tier', 'status', 'expiresAt', 'grandfathered', 'referredBy', 'referralClaimed', 'referralsCount', 'source']))
+      );
+      allow delete: if isSignedIn() && isAdmin();
+    }
+
+    // --- Curriculum ---
+    match /curriculums/{curriculumId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isAdmin();
+    }
+    match /competencies/{compId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isAdmin();
+    }
+    match /indicators/{indId} {
+      allow read: if isSignedIn();
       allow write: if isSignedIn() && isAdmin();
     }
   }

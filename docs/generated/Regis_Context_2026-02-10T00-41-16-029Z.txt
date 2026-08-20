@@ -1,0 +1,695 @@
+REGIS PROJECT CONTEXT OBTAINED AT 2026-02-10T00:41:16.036Z
+================================================================
+
+
+
+--- START OF FILE: docs/ARCHITECTURE.md ---
+```md
+# Regis PWA: Architecture & Roadmap
+
+> **Document Status**: Living
+> **Target Audience**: Human Developers & AI Agents
+> **Tech Stack**: React 18 (Vite), Firebase (Auth, Firestore, Storage, Hosting), Tailwind CSS v4, Vitest
+> **Strategic Roadmap**: See [ROADMAP_REGIS](./ROADMAP_REGIS)
+
+---
+
+## 1. High-Level Technical Roadmap
+
+This roadmap tracks the *technical* implementation of the strategic goals found in `ROADMAP_REGIS`.
+
+| Phase | Goal | Key Features | Technical State | Exit Criteria |
+| :--- | :--- | :--- | :--- | :--- |
+| **I. Foundation (Offline Core)** | Establish a reliable, offline-first daily driver. | • Firestore Subcollections (Grades) ✅<br>• Offline Sync (IndexedDB) ⚠️<br>• Payments (Stripe) ⚠️<br>• Local Avatars | **STABILIZATION**.<br>Subcollections migrated.<br>Offline sync under testing (`offline-sync.test.ts`). | • Zero regression in offline mode.<br>• 95+ LightHouse Performance.<br>• All 19 sync tests passing. |
+| **II. Refinement & Intelligence** | Enhance UX and assist via AI. | • Onboarding (Quick Guide)<br>• AI Summaries (Gemini)<br>• Voice-to-Text Anecdotes<br>• Dark Mode | **IN PROGRESS**.<br>Gemini service mocked/skeleton.<br>Ul components ready. | • Gemini API integration complete.<br>• Responsive Design polished for mobile. |
+| **III. Scale & Compliance** | Security, Data Export, and Multi-term. | • Advanced Reports (jspdf)<br>• Historical Term archiving<br>• Role-Based Access (Admin) | **PLANNED**.<br>Admin structure exists.<br>Reports engine basic. | • Security Audit Pass.<br>• Strict Firestore Rules coverage. |
+
+---
+
+## 2. System Architecture Overview
+
+Regis follows a **Serverless, Offline-First** architecture reliant on the Firebase ecosystem.
+
+
+### Layer Diagram
+
+| Layer | Technology | Responsibilities | Contracts |
+| :--- | :--- | :--- | :--- |
+| **Client (PWA)** | React, Vite, Tailwind | • UI Rendering<br>• **State-Based Routing** (No standard router)<br>• Offline Data Access<br>• **Battery-Aware Sync** (ConnectionMonitor) | Talks to **Firebase SDK** + Specialized Services. |
+| **Service Layer** | TypeScript Modules | • `api.ts`: Core Sync Engine<br>• `authService.ts`: Identity<br>• `geminiService.ts`: AI<br>• `stripe.ts`: Payments | Centralizes logic. Components call these, NEVER DB directly. |
+| **State & Data** | Firestore SDK (Client) | • Real-time subscriptions (Optimized via Lazy Loading)<br>• Offline Persistence (IndexedDB)<br>• **Smart Backup** (LocalStorage Emergency Snapshot) | Acts as the "Source of Truth". Syncs with **Cloud** when online. |
+| **Backend Services** | Firebase (Cloud) | • Authentication (Identity Platform)<br>• NoSQL Database (Firestore)<br>• Object Storage (Storage) | Enforces **Security Rules**. Syncs data across devices. |
+
+### Key Constraints
+*   **Direct DB Access**: The client reads/writes directly to Firestore using the Web SDK. No intermediate API server.
+*   **Offline First**: The app **must** function if the network layer is severed. All critical reads/writes go through the Firestore Cache first.
+*   **Mobile First UI**: Components must be touch-friendly and responsive (`MobileGradeGrid`, `MobileBottomNav`).
+*   **Battery Efficiency**: Subscriptions must be lazy-loaded (e.g., Grades only for active class). Network pinging must be event-driven, not polled.
+
+---
+
+## 3. Frontend Architecture (React)
+
+### Directory Structure & Intent
+```text
+/d:/Programs/Dev/regis/
+├── components/           # UI Layer
+│   ├── [Feature]Manager.tsx # Smart Containers (Logic + View)
+│   ├── [Feature]Modal.tsx   # Edit/Action Dialogs
+│   ├── shared/              # Generic atoms (Tooltip, Toast)
+│   ├── admin/               # Admin-only views (Lazy loaded)
+│   └── mobile/              # Mobile-specific optimized views
+├── services/             # Logic Layer (External & IO)
+│   ├── api.ts            # Central Sync Engine & Firestore Wrappers
+│   ├── curriculumService.ts # Competencies & Indicators
+│   ├── offlineStorage.ts # Local file handling (IndexedDB support)
+│   └── geminiService.ts  # AI Integration
+├── tests/                # Verification Layer
+│   └── offline-sync.test.ts # Critical resilience suite
+├── types.ts              # Contract Layer (Single source of truth)
+└── App.tsx               # Main Controller (Routing, Global State)
+```
+
+### Core Architecture Rules
+1.  **Manager Pattern**: Major features (Gradebook, Attendance) use a "Manager" component as the main entry point to handle local state and fetching.
+2.  **Resilience First**: All Firestore writes MUST pass through `api.ts` -> `handleWriteError` wrapper.
+3.  **Strict separation**: Components receive data via listeners/hooks from `services/api.ts`.
+4.  **Custom Routing**: The app uses `App.tsx` state (`currentView`) for navigation, not React Router.
+5.  **Educational Levels**: The system dynamically adjusts logic (e.g., Competency Grouping) based on `Class.level` (Primary vs Secondary).
+
+
+---
+
+## 4. Firebase Architecture
+
+### Services Used
+*   **Authentication**: Email/Password + Google Auth.
+*   **Firestore**: Primary DB.
+*   **Storage**: Evidence photos/audio.
+*   **Hosting**: Static asset delivery (Targets: `beta`, `pro`).
+*   **Emulators**: Local dev environment (Firestore, Auth, Functions).
+
+### Data Model (Multi-Tenant by Design)
+Structure uses **Subcollections** for scalability.
+
+| Component | Collection Path | Document Structure | Notes |
+| :--- | :--- | :--- | :--- |
+| **Global Config** | `app_config/global_ai_features` | `{ featureName: boolean }` | Read-only for users. |
+| **User Data** | `users/{uid}/students/{studentId}` | `{ name, orderNumber, ... }` | Core entity. |
+|  | `users/{uid}/classes/{classId}` | `{ name, grade, section }` | |
+| **Grades** | `instruments/{instId}/grades/{studentId}` | `{ score, criteriaScores }` | **Subcollection**. Critical for querying. |
+| **Attendance** | `users/{uid}/attendance/{date}_{classId}` | `{ records: [...] }` | Batch storage per class/day. |
+| **Subscriptions**| `users/{uid}/subscriptions/{subId}` | `{ status, plan, period }` | Syncs with Stripe. |
+| **Logs** | `system_logs/{logId}` | `{ error, context, timestamp }` | Remote telemetry. |
+
+### Security Philosophy
+*   **Rules**: `allow read, write: if request.auth.uid == userId;`
+*   **Validation**: Validate schema types in rules (e.g., `score is number`).
+*   **Trust**: Client is **untrusted**.
+
+---
+
+## 5. Dev & Deployment Workflow
+
+### Local Development
+1.  **Install**: `npm install`
+2.  **Dev Server**: `npm run dev` (Vite @ localhost:5173).
+3.  **Testing**: `npm run test` (Vitest).
+
+### Deployment Flow
+*   **Beta/Dev**: `npm run deploy:dev` (Uses `firebase.dev.json`).
+*   **Production**: `npm run deploy:web:prod` (Target: `pro`).
+
+### Environments
+*   **Development**: Localhost + Firebase Dev Project (`dev` alias).
+*   **Production**: `teacher-productivity-kit.web.app` (Firebase Prod Project).
+
+---
+
+## 6. Rules for AI Agents Working on This Codebase
+
+### ✅ Safe to Change
+*   **UI Components**: Styling (Tailwind v4), Layout.
+*   **Service Logic**: Updating `api.ts` or `xxxService.ts` internals.
+*   **Types**: Adding *optional* fields to `types.ts`.
+
+### ⚠️ Requires Human Approval
+*   **Destructive Actions**: Deleting collections or bulk data operations.
+*   **Infrastructure**: Changing `firebase.json` or `firestore.rules`.
+*   **Dependencies**: Adding new npm packages.
+*   **Schema Changes**: Changing `types.ts` core interfaces (breaking changes).
+
+### 🚀 How to Add New Features
+1.  **Define Type**: Add interface to `src/types.ts`.
+2.  **Service Layer**: Add CRUD methods to `src/services/api.ts` or specific service.
+3.  **Manager Component**: Create `[Feature]Manager.tsx`.
+4.  **Verification**:
+    *   **MUST** Test **OFFLINE** behavior.
+    *   **MUST** Add/Update tests in `tests/`.
+
+### ⛔ Critical Constraints
+*   **NEVER** bypass `services/api.ts` for DB calls.
+*   **NEVER** use `window.location` for navigation (Use `App.tsx` callbacks).
+*   **NEVER** break the build (TS strict mode is ON).
+*   **Check Tailwind Version**: We use v4 (CSS variables). Ensure generated styles are compatible.
+
+```
+--- END OF FILE: docs/ARCHITECTURE.md ---
+
+
+--- START OF FILE: docs/ROADMAP_REGIS ---
+```txt
+ROADMAP REGIS
+Desarrollo + Adopción Masiva (12–18 meses)
+FASE 0 — BASE CONSOLIDADA (AHORA – 1 mes)
+Objetivo: que REGIS sea incuestionablemente confiable.
+Desarrollo
+● Congelar flujos UX validados (asistencia, calificador, reportes)
+● Estabilizar navegación (back, CTA, headers contextuales)
+● Copy claro en acciones críticas
+● Métricas mínimas de uso (login, guardar, volver)
+● Backup y monitoreo básico Firestore
+Producto
+● Beta cerrada (≤15 docentes)
+● Cero features nuevas
+● Solo corrección y refinamiento
+KPI clave
+● Docentes activos ≥ 40–50% semanal
+● Uso en días distintos (no solo prueba)
+👉 Riesgo si se salta esta fase: crecimiento sobre base inestable.
+FASE 1 — BETA AMPLIADA CONTROLADA (2–3
+meses)
+Objetivo: validación en contextos reales diversos.
+Desarrollo
+● Optimización performance PWA
+● Mejoras offline edge-cases
+● UI final de dashboards
+● Exportes/reportes 100% confiables
+Producto
+● Ampliar a 50–100 docentes
+● Diferentes centros / niveles
+● Canal formal de feedback
+Negocio
+● Definir propuesta de valor clara:
+“REGIS ahorra X horas al mes al docente”
+KPI clave
+● Retención 30 días
+● Uso recurrente sin acompañamiento
+👉 Aquí se decide si REGIS escala o se estanca.
+FASE 2 — LANZAMIENTO PÚBLICO DOCENTE (4–6
+meses)
+Objetivo: adopción orgánica entre docentes.
+Desarrollo
+● Activar IA selectiva y asistida:
+○ Criterios de evaluación
+○ Resúmenes pedagógicos
+● Onboarding guiado
+● Centro de ayuda ligero
+Producto
+● Plan gratuito funcional (core)
+● Plan pago (tiempo + valor):
+○ IA
+○ Reportes avanzados
+○ Soporte prioritario
+Distribución
+● Boca a boca docente
+● WhatsApp
+● Demostraciones simples
+● Nada de marketing pesado
+KPI clave
+● Conversión free → pago
+● Docentes recomendando a otros
+👉 Moat inicial: hábito + tiempo ahorrado.
+FASE 3 — INTEGRACIONES DE COMUNICACIÓN (6–9
+meses)
+Objetivo: aumentar dependencia del ecosistema.
+Desarrollo
+● Integración WhatsApp:
+○ Padres: notificaciones
+○ Estudiantes: consignas, recordatorios
+● Agente IA (“Vicente” u otro):
+○ Explicaciones
+○ Recordatorios
+○ Resúmenes
+Producto
+● REGIS deja de ser solo “registro”
+● Se convierte en hub operativo del aula
+KPI clave
+● Uso semanal
+● Docentes que no quieren volver atrás
+👉 Aquí REGIS se vuelve difícil de reemplazar.
+FASE 4 — ECOSISTEMA EDUCATIVO (9–18 meses)
+Objetivo: expansión estratégica, no masiva sin control.
+Desarrollo
+● App para estudiantes (lúdica, tipo “misiones”)
+● Integración con estándares curriculares
+● Analítica pedagógica
+Producto
+● Ecosistema:
+○ Docente (REGIS)
+○ Estudiante (gamificado)
+○ Padre (informativo)
+Estrategia
+● Alianzas institucionales
+● Pilotos con centros
+● No competir frontalmente con el Estado: complementar
+KPI clave
+● Centros completos usando REGIS
+● Contratos institucionales
+RESUMEN EJECUTIVO (1 línea por fase)
+● Fase 0: estabilidad
+● Fase 1: validación amplia
+● Fase 2: monetización docente
+● Fase 3: dependencia del ecosistema
+● Fase 4: expansión estructural
+Advertencia clave (como cofundador)
+El mayor riesgo de REGIS no es la competencia.
+Es querer llegar a la Fase 4 sin dominar la Fase 1.
+```
+--- END OF FILE: docs/ROADMAP_REGIS ---
+
+
+--- START OF FILE: docs/OFFLINE_STRATEGY.md ---
+```md
+# Offline Synchronization Strategy
+
+## Core Principles
+1. **Optimistic UI**: All user actions are reflected immediately in the local state (`localStorage`) and notified via `notifyLocalChange`.
+2. **Background Sync**: Firestore writes happen in the background. If the user is offline, the Firebase SDK queues the writes; however, our `api.ts` adds an extra layer of explicit retry logic for critical operations.
+3. **Resilience Layer**: Exponential backoff retries (3 attempts: 1s, 2s, 4s) for transient Firestore errors (e.g., `unavailable`).
+4. **Standardized Error Handling**: All write operations are wrapped in `handleWriteError`, which manages UI notifications (`syncEvents`) and remote logging.
+
+## Data Model Enhancements
+- All syncable entities now inherit from `BaseEntity`.
+- **`updatedAt`**: ISO String timestamp added to every write. Used for deterministic "Last-Write-Wins" resolution.
+- **`schemaVersion`**: Injected into every document to handle future migrations.
+
+## Resilience Mechanism: `handleWriteError` & `withRetry`
+Implemented in `services/api.ts`, this dual-layer strategy ensures:
+- **`withRetry`**: Exponential backoff for network-related failures.
+- **`handleWriteError`**: 
+  - Instant failure UI notifications on security/permission errors.
+  - Remote telemetry logging to `system_logs` for all write failures.
+  - Contextual error tagging for easier debugging.
+
+## Conflict Handling & Structural Integrity
+- **Subcollections migration**: The `grades` model has been migrated from bulk documents to student-indexed subcollections, eliminating the "Last-Write-Wins" overwrite bug.
+- **Merge Strategies**: All `setDoc` operations now consider whether a merge is appropriate, though subcollections largely render this moot for individual records.
+
+## UI Feedback: `SyncStatusIndicator`
+Integrated into the application header to provide real-time status:
+- `offline`: No network connection detected.
+- `syncing`: Pending Firestore writes.
+- `synced`: All writes successful.
+- `error`: Permission denied or persistent failure (recorded in `system_logs`).
+
+## Verification
+A suite of 18 automated tests in `tests/offline-sync.test.ts` validates:
+- Persistence during offline bouts.
+- Successful recovery on reconnection.
+- Retry logic and suppression of retries on permission errors.
+- Telemetry logging verification.
+- Data sanitization and integrity checks.
+
+```
+--- END OF FILE: docs/OFFLINE_STRATEGY.md ---
+
+
+--- START OF FILE: docs/NOTEBOOKLM_WORKFLOW.md ---
+```md
+# Integración de NotebookLM al Workflow de Desarrollo (Regis)
+
+Este documento define la estrategia para utilizar **NotebookLM** como un "Arquitecto Senior AI" o "Product Manager Técnico" dentro del ciclo de vida de desarrollo de Regis.
+
+NotebookLM se convierte en la **memoria viva** del proyecto, respondiendo preguntas basadas estrictamente en nuestra documentación técnica y código fuente.
+
+## 1. Definición del Corpus (La "Fuente de la Verdad")
+
+Para que NotebookLM sea efectivo, debe nutrirse de los documentos correctos. El "Corpus Regis" se compone de 3 categorías:
+
+### A. Documentación Core (Estratégico)
+Estos archivos definen **qué** estamos construyendo y **por qué**.
+*   `docs/ARCHITECTURE.md`: Reglas inquebrantables del sistema (Offline-first, Manager Pattern).
+*   `docs/ROADMAP_REGIS`: Hacia dónde vamos (MVP vs Futuro).
+*   `docs/OFFLINE_STRATEGY.md`: La lógica más compleja del sistema.
+*   `types.ts`: El contrato de datos fundamental.
+
+### B. Contexto de Implementación (Táctico)
+Estos archivos explican **cómo** funciona el sistema actualmente.
+*   `services/api.ts`: El motor de sincronización.
+*   `services/authService.ts`: Manejo de identidad.
+*   `docs/INCIDENT_DATA_LOSS.md`: Lecciones aprendidas (para evitar regresiones).
+
+### C. Especificaciones de Funcionalidad (Feature Specs)
+Antes de codificar, subimos el "mini-spec" de la tarea actual.
+*   `docs/[FEATURE_NAME_PLAN].md` (Si existe).
+
+---
+
+## 2. Flujos de Trabajo (Use Cases)
+
+### Caso 1: Validación de Arquitectura (Pre-Code)
+Antes de escribir una nueva feature (ej. "Sistema de Badges"), consulta al Notebook.
+
+**Prompt Sugerido:**
+> "Actúa como el Lead Architect de Regis. Basado en `ARCHITECTURE.md` y `types.ts`, evalúa mi propuesta para el sistema de Badges (ver abajo). ¿Viola algún principio de 'Offline First' o 'No Direct DB Access'? ¿Cómo debería estructurar los datos en Firestore?"
+
+### Caso 2: Onboarding & Explicación de Código
+Cuando te enfrentes a un bug complejo en `offline-sync.test.ts`.
+
+**Prompt Sugerido:**
+> "Explícame cómo funciona la lógica de resolución de conflictos en `api.ts` según la documentación de `OFFLINE_STRATEGY.md`. ¿Por qué podría estar fallando el test de 'retry logic'?"
+
+### Caso 3: Generación de Documentación y Changelogs
+Al terminar un sprint o una feature grande.
+
+**Prompt Sugerido:**
+> "Basado en los cambios recientes en `api.ts` y el nuevo `MobileGradeGrid.tsx`, redacta un párrafo para el `CHANGELOG.md` que explique las mejoras de performance a un usuario no técnico."
+
+---
+
+## 3. Automatización: El script `generate-context`
+
+Para evitar subir 20 archivos manualmente, crearemos un script que concatena los archivos más importantes en uno solo (`Regis_Context_Snapshot.txt`) para subirlo fácilmente a NotebookLM.
+
+**Comando:**
+```bash
+npm run gen:context
+```
+
+**Salida:**
+Un archivo en `docs/generated/Regis_Context_[FECHA].txt` que contiene:
+1.  Todo `docs/` (seleccionados).
+2.  `types.ts`.
+3.  `services/api.ts`.
+4.  `package.json`.
+
+---
+
+## 4. Rutina de Mantenimiento
+
+1.  **Cada Sprint Start**: Correr `npm run gen:context` y actualizar la fuente en NotebookLM ("Add Source" -> Update).
+2.  **Cada Cambio de Arquitectura**: Si se modifica `ARCHITECTURE.md`, es **obligatorio** actualizar el Notebook.
+
+```
+--- END OF FILE: docs/NOTEBOOKLM_WORKFLOW.md ---
+
+
+--- MISSING FILE: src/types.ts ---
+
+
+--- MISSING FILE: src/services/api.ts ---
+
+
+--- MISSING FILE: src/services/authService.ts ---
+
+
+--- START OF FILE: package.json ---
+```json
+{
+  "name": "regis",
+  "private": true,
+  "version": "1.6.4",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "deploy:dev": "firebase deploy --project dev --config firebase.dev.json",
+    "deploy:rules:dev": "firebase deploy --only firestore:rules --project dev --config firebase.dev.json",
+    "deploy:rules:prod": "firebase deploy --only firestore:rules --project prod",
+    "deploy:web:beta": "firebase deploy --only hosting:beta --project prod",
+    "deploy:web:prod": "firebase deploy --only hosting:pro --project prod",
+    "gen:context": "node scripts/generate-notebook-context.js"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@fluentui/react-icons": "^2.0.317",
+    "@google/genai": "^1.28.0",
+    "@stripe/stripe-js": "^8.7.0",
+    "firebase": "^12.7.0",
+    "firebase-admin": "^13.6.0",
+    "html2canvas": "^1.4.1",
+    "idb": "^8.0.3",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
+    "lucide-react": "^0.563.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-google-recaptcha-v3": "^1.11.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/html2canvas": "^0.5.35",
+    "@types/node": "^22.14.0",
+    "@types/qrcode": "^1.5.6",
+    "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.23",
+    "dotenv": "^17.2.3",
+    "firebase-tools": "^15.4.0",
+    "jsdom": "^27.4.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.0.17"
+  }
+}
+```
+--- END OF FILE: package.json ---
+
+
+--- START OF FILE: firebase.json ---
+```json
+{
+    "hosting": [
+        {
+            "target": "beta",
+            "public": "dist",
+            "ignore": [
+                "firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+            ],
+            "rewrites": [
+                {
+                    "source": "**",
+                    "destination": "/index.html"
+                }
+            ]
+        },
+        {
+            "target": "pro",
+            "public": "dist",
+            "ignore": [
+                "firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+            ],
+            "rewrites": [
+                {
+                    "source": "**",
+                    "destination": "/index.html"
+                }
+            ]
+        }
+    ],
+    "firestore": {
+        "rules": "firestore.rules"
+    },
+    "functions": {
+        "source": "functions"
+    },
+    "storage": {
+        "rules": "storage.rules"
+    },
+    "emulators": {
+        "functions": {
+            "port": 5001
+        },
+        "firestore": {
+            "port": 8080
+        },
+        "ui": {
+            "enabled": true,
+            "port": 4000
+        },
+        "singleProjectMode": true
+    }
+}
+```
+--- END OF FILE: firebase.json ---
+
+
+--- START OF FILE: firestore.rules ---
+```rules
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return request.auth.token.admin == true || request.auth.token.email == 'aneurystheone@gmail.com';
+    }
+
+    function isDemoTemplate(data) {
+      return data.userId == 'DEMO_PROFILE_TEMPLATE';
+    }
+
+    
+    // --- Collection-Specific Rules ---
+
+    // 1. Teacher Profile
+    match /teacher_profile/{uid} {
+      allow read: if isSignedIn() && (uid == request.auth.uid || isAdmin() || resource == null);
+      allow write: if isOwner(uid);
+    }
+    
+    // 2. Standard Shared Collections (By userId field)
+    // 2. Standard Collections (By userId field)
+    match /classes/{docId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+      allow write: if isSignedIn() && (
+        (resource == null || resource.data.userId == request.auth.uid) &&
+        (request.resource == null || request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    match /students/{docId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+      allow write: if isSignedIn() && (
+        (resource == null || resource.data.userId == request.auth.uid) &&
+        (request.resource == null || request.resource.data.userId == request.auth.uid)
+      );
+    }
+    
+    // Fallback for other collections in the list
+    match /{collectionName}/{docId} {
+        allow read: if isSignedIn() && (
+          collectionName in ['deleted_students', 'deleted_classes', 'anecdotes', 'user_competencies', 'journal', 'resources', 'custom_events', 'lesson_plans', 'attendance'] &&
+          (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data))
+        );
+        allow write: if isSignedIn() && (
+          collectionName in ['deleted_students', 'deleted_classes', 'anecdotes', 'user_competencies', 'journal', 'resources', 'custom_events', 'lesson_plans', 'attendance'] &&
+          (resource == null || resource.data.userId == request.auth.uid) &&
+          (request.resource == null || request.resource.data.userId == request.auth.uid)
+        );
+    }
+
+    // --- Evaluation Instruments & Grades ---
+    match /instruments/{instId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+      allow write: if isSignedIn() && (
+        (resource == null || resource.data.userId == request.auth.uid) &&
+        (request.resource == null || request.resource.data.userId == request.auth.uid)
+      );
+
+      // Grades Subcollection (instruments/{instId}/grades)
+      // DIAGNOSTIC MASK: Temporarily simplified to isolate query issues
+      match /grades/{gradeId} {
+        allow read, write: if isSignedIn();
+
+        // Support for nested subcollections like /history
+        match /{allPaths=**} {
+           allow read, write: if isSignedIn();
+        }
+      }
+
+      // History sidecar at instrument level (legacy or shared)
+      match /history/{docId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // --- System Logs (Telemetry) ---
+    match /system_logs/{docId} {
+      allow create: if true; // Temporary allow all to fix telemetry diagnostic
+      allow read: if isSignedIn() && isAdmin();
+    }
+
+    // --- Usage Sessions (Analytics) ---
+    match /usage_sessions/{sessionId} {
+      // Admins can read all sessions for analytics dashboard
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        sessionId.startsWith(request.auth.uid) ||
+        (resource != null && resource.data.userId == request.auth.uid)
+      );
+      
+      // Users can only write their own sessions
+      allow write: if isSignedIn() && (
+        sessionId.startsWith(request.auth.uid) ||
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    
+    // 3. Bulk Lists (Special document ID format)
+    match /lists/{listDocId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (
+        listDocId == "grades_" + request.auth.uid || 
+        listDocId == "attendance_" + request.auth.uid ||
+        listDocId == "daily_notes_" + request.auth.uid ||
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid)
+      );
+    }
+    
+    // Specific Rules for detailed control or exceptions
+    
+    // Users Collection (Private Profile)
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Subscriptions (User Private)
+    match /subscriptions/{uid} {
+      allow read: if isSignedIn() && isOwner(uid);
+      allow write: if isSignedIn() && isOwner(uid);
+    }
+
+    // App Configuration
+    match /app_config/global_ai_features {
+      // Everyone can read features (to respect settings)
+      allow read: if true; 
+      // Only admins can change them
+      allow write: if isSignedIn() && isAdmin();
+    }
+
+    match /app_config/global_config {
+      // Version and build info should be public so users can be prompted to update
+      allow read: if true;
+      allow write: if isSignedIn() && isAdmin();
+    }
+
+    // --- Feedback ---
+    match /feedback/{feedbackId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow update, delete: if isSignedIn() && isAdmin();
+    }
+  }
+}
+
+```
+--- END OF FILE: firestore.rules ---

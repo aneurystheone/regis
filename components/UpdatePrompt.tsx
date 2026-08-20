@@ -1,25 +1,10 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { api } from '../services/api';
 import { APP_VERSION } from '../types';
 import { SparklesIcon, XIcon, ArrowPathIcon } from './icons';
 import { Avatar } from './Avatar';
 
 export const UpdatePrompt: React.FC = () => {
-    const {
-        offlineReady: [offlineReady, setOfflineReady],
-        needRefresh: [needRefresh, setNeedRefresh],
-        updateServiceWorker,
-    } = useRegisterSW({
-        onRegistered(r) {
-            console.log('SW Registered: ', r);
-        },
-        onRegisterError(error) {
-            console.error('SW registration error', error);
-        },
-    });
-
     const [hasRemoteUpdate, setHasRemoteUpdate] = useState(false);
     const [remoteVersion, setRemoteVersion] = useState<string>('');
     const [isDismissed, setIsDismissed] = useState(false);
@@ -32,8 +17,7 @@ export const UpdatePrompt: React.FC = () => {
                 console.log('UpdatePrompt: Version Check', {
                     APP_VERSION,
                     latest,
-                    mismatch: latest !== APP_VERSION,
-                    needRefresh
+                    mismatch: latest !== APP_VERSION
                 });
 
                 if (latest && latest !== APP_VERSION) {
@@ -57,40 +41,28 @@ export const UpdatePrompt: React.FC = () => {
         const dismissed = sessionStorage.getItem('regis_update_dismissed');
         // If we have a remote version, check if IT was dismissed
         if (remoteVersion && dismissed === remoteVersion) return true;
-        // If we only have a SW update (needRefresh), check if "SW" was dismissed
-        if (needRefresh && dismissed === 'SW_NEED_REFRESH') return true;
         return false;
-    }, [remoteVersion, needRefresh]);
+    }, [remoteVersion]);
 
     const handleRefresh = () => {
-        console.log('UpdatePrompt: Handling Refresh Request', { needRefresh, remoteVersion });
+        console.log('UpdatePrompt: Handling Refresh Request', { remoteVersion });
 
         if (remoteVersion) {
             sessionStorage.setItem('regis_update_dismissed', remoteVersion);
-        } else if (needRefresh) {
-            sessionStorage.setItem('regis_update_dismissed', 'SW_NEED_REFRESH');
         }
 
-        if (needRefresh) {
-            updateServiceWorker(true);
-        } else {
-            window.location.reload();
-        }
+        window.location.reload();
     };
 
     const close = () => {
         if (remoteVersion) {
             sessionStorage.setItem('regis_update_dismissed', remoteVersion);
-        } else {
-            sessionStorage.setItem('regis_update_dismissed', 'SW_NEED_REFRESH');
         }
-        setOfflineReady(false);
-        setNeedRefresh(false);
         setHasRemoteUpdate(false);
         setIsDismissed(true);
     };
 
-    if (isDismissed || isSessionDismissed || (!needRefresh && !offlineReady && !hasRemoteUpdate)) return null;
+    if (isDismissed || isSessionDismissed || !hasRemoteUpdate) return null;
 
     return (
         <div className="fixed bottom-6 right-6 z-[100] w-[90%] max-w-sm animate-fade-in-up">
@@ -104,27 +76,22 @@ export const UpdatePrompt: React.FC = () => {
 
                     <div className="flex-1 min-w-0">
                         <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm tracking-tight flex items-center gap-2">
-                            {needRefresh || hasRemoteUpdate ? (
+                            {hasRemoteUpdate ? (
                                 <>
                                     <SparklesIcon className="w-4 h-4 text-brand-secondary" />
                                     ¡Nueva versión disponible!
                                 </>
-                            ) : (
-                                <>
-                                    <SparklesIcon className="w-4 h-4 text-emerald-500" />
-                                    Regis listo para usar offline
-                                </>
-                            )}
+                            ) : null}
                         </h4>
 
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium leading-relaxed">
-                            {needRefresh || hasRemoteUpdate
+                            {hasRemoteUpdate
                                 ? `Hay una actualización disponible (${remoteVersion || 'Nuevas mejoras'}). Refresca para disfrutar de las novedades.`
-                                : "La aplicación se ha descargado correctamente. ¡Ahora puedes usar Regis sin conexión a internet!"}
+                                : null}
                         </p>
 
                         <div className="mt-4 flex gap-2">
-                            {(needRefresh || hasRemoteUpdate) ? (
+                            {hasRemoteUpdate ? (
                                 <button
                                     onClick={handleRefresh}
                                     className="flex-1 flex items-center justify-center gap-2 bg-brand-primary text-white text-[11px] font-black py-2.5 rounded-xl hover:bg-brand-secondary transition-all active:scale-95 shadow-lg shadow-brand-primary/20"
@@ -141,7 +108,7 @@ export const UpdatePrompt: React.FC = () => {
                                 </button>
                             )}
 
-                            {(needRefresh || hasRemoteUpdate) && (
+                            {hasRemoteUpdate && (
                                 <button
                                     onClick={close}
                                     className="px-3 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-colors"

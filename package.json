@@ -1,35 +1,117 @@
 {
   "name": "regis",
   "private": true,
-  "version": "1.5.0",
+  "version": "1.8.6",
   "type": "module",
+  "main": "electron/main.js",
+  "author": "Aneurys",
+  "description": "Regis Application",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "vite build --mode development",
+    "build:prod": "vite build --mode production",
+    "build:standby": "vite build --mode standby",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "deploy:dev": "firebase deploy --project dev --config firebase.dev.json",
+    "deploy:functions:dev": "npm run --prefix functions build && firebase deploy --only functions --project dev --config firebase.dev.json",
+    "deploy:rules:dev": "firebase deploy --only firestore:rules --project dev --config firebase.dev.json",
+    "deploy:rules:prod": "firebase deploy --only firestore:rules --project prod",
+    "deploy:rules:standby": "firebase deploy --only firestore:rules --project standby --config firebase.dev.json",
+    "deploy:web:beta": "firebase deploy --only hosting:beta --project prod",
+    "deploy:web:prod": "firebase deploy --only hosting:pro --project prod",
+    "deploy:standby": "firebase deploy --project standby --config firebase.dev.json",
+    "check": "vitest run && tsc --noEmit",
+    "check:deps": "node scripts/check-deps.js",
+    "gen:context": "node scripts/generate-notebook-context.js",
+    "backup:export": "npx tsx scripts/sync-firestore.ts export",
+    "backup:import": "npx tsx scripts/sync-firestore.ts import",
+    "feedback": "npx tsx scripts/feedback-manager.ts",
+    "feedback:auto": "npx tsx scripts/feedback-manager.ts --auto --mark-reviewed",
+    "set-premium": "npx tsx scripts/set-premium.ts",
+    "postinstall": "npx patch-package",
+    "desktop:dev": "cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:3000 && electron .\"",
+    "desktop:build": "vite build --mode desktop && electron-builder"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
+    "@capacitor/camera": "^8.0.0",
+    "@capacitor/core": "^8.4.1",
+    "@capgo/capacitor-social-login": "^8.0.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@emotion/is-prop-valid": "^1.4.0",
+    "@fluentui/react-icons": "^2.0.317",
     "@google/genai": "^1.28.0",
+    "@stripe/stripe-js": "^8.7.0",
     "firebase": "^12.7.0",
-    "jspdf": "^3.0.4",
+    "firebase-admin": "^13.6.0",
+    "idb": "^8.0.3",
+    "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.2",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-google-recaptcha-v3": "^1.11.0"
+    "lucide-react": "^0.563.0",
+    "motion": "^12.34.3",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-google-recaptcha-v3": "^1.11.0",
+    "read-excel-file": "^8.0.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
     "@tailwindcss/postcss": "^4.1.18",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.14.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.23",
-    "firebase-tools": "^15.1.0",
+    "concurrently": "^10.0.4",
+    "cross-env": "^10.1.0",
+    "dotenv": "^17.2.3",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "firebase-tools": "^15.4.0",
+    "jsdom": "^27.4.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
+    "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^0.21.1",
+    "vitest": "^4.0.17",
+    "wait-on": "^9.1.0"
+  },
+  "build": {
+    "appId": "com.aneurys.regis",
+    "productName": "REGIS",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "icon": "public/pwa-512x512.png",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "include": "build/installer.nsh",
+      "deleteAppDataOnUninstall": true,
+      "installerLanguages": [
+        "es_ES"
+      ]
+    }
   }
 }

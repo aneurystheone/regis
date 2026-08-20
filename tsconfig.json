@@ -26,5 +26,17 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "src",
+    "*.ts",
+    "*.tsx",
+    "services",
+    "components",
+    "contexts",
+    "hooks",
+    "pages",
+    "constants",
+    "config"
+  ]
 }

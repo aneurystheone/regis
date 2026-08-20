@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
     DocumentTextIcon,
     ChartBarIcon,
@@ -6,12 +6,10 @@ import {
     UserPlusIcon,
     MicrophoneIcon,
     ChatBubbleBottomCenterTextIcon,
-    TableCellsIcon,
-    CheckIcon,
-    ExclamationIcon
+    VicenteIcon,
+    PresentationChartBarIcon
 } from '../icons';
 import type { AIFeatures } from '../../types';
-import { uploadCurriculumData } from '../../services/curriculumService';
 
 interface AISettingsProps {
     aiFeatures: AIFeatures;
@@ -48,101 +46,82 @@ const AIToggle: React.FC<{
 );
 
 const AISettings: React.FC<AISettingsProps> = ({ aiFeatures, setAiFeatures }) => {
-    const [migrationStatus, setMigrationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-
-    const handleMigration = async () => {
-        setMigrationStatus('loading');
-        try {
-            await uploadCurriculumData();
-            setMigrationStatus('success');
-        } catch (error) {
-            setMigrationStatus('error');
-        }
-    };
-
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div>
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-2 tracking-tight">Funciones de IA - Vicente</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Activa o desactiva las capacidades inteligentes de tu asistente docente.</p>
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-1 tracking-tight flex items-center gap-2">
+                    <VicenteIcon className="w-7 h-7 text-amber-500" />
+                    Configuración IA - Vicente
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Gestiona y habilita los módulos de Inteligencia Artificial para los docentes.</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-md border border-slate-100 dark:border-slate-700 space-y-4">
-                <AIToggle
-                    icon={<DocumentTextIcon className="w-6 h-6 text-indigo-500" />}
-                    title="Resumen de Estudiantes"
-                    description="Genera resúmenes automáticos del progreso y desempeño."
-                    isActive={aiFeatures.summaryGeneration}
-                    onToggle={() => setAiFeatures({ ...aiFeatures, summaryGeneration: !aiFeatures.summaryGeneration })}
-                />
-                <AIToggle
-                    icon={<ChartBarIcon className="w-6 h-6 text-emerald-500" />}
-                    title="Sugerencia de Criterios"
-                    description="Vicente sugiere criterios de evaluación para tus instrumentos."
-                    isActive={aiFeatures.criteriaGeneration}
-                    onToggle={() => setAiFeatures({ ...aiFeatures, criteriaGeneration: !aiFeatures.criteriaGeneration })}
-                />
-                <AIToggle
-                    icon={<SparklesIcon className="w-6 h-6 text-amber-500" />}
-                    title="Planificador de Clases"
-                    description="Diseña planes de clases completos basados en el currículo."
-                    isActive={aiFeatures.lessonPlanning}
-                    onToggle={() => setAiFeatures({ ...aiFeatures, lessonPlanning: !aiFeatures.lessonPlanning })}
-                />
-                <AIToggle
-                    icon={<UserPlusIcon className="w-6 h-6 text-blue-500" />}
-                    title="Extractor de Estudiantes"
-                    description="Lee nombres de estudiantes desde fotos de listas impresas."
-                    isActive={aiFeatures.studentExtraction}
-                    onToggle={() => setAiFeatures({ ...aiFeatures, studentExtraction: !aiFeatures.studentExtraction })}
-                />
-                <AIToggle
-                    icon={<MicrophoneIcon className="w-6 h-6 text-rose-500" />}
-                    title="Análisis de Audio"
-                    description="Analiza y categoriza registros anecdóticos grabados."
-                    isActive={aiFeatures.audioAnalysis}
-                    onToggle={() => setAiFeatures({ ...aiFeatures, audioAnalysis: !aiFeatures.audioAnalysis })}
-                />
-                <AIToggle
-                    icon={<ChatBubbleBottomCenterTextIcon className="w-6 h-6 text-purple-500" />}
-                    title="Vicente en Panel"
-                    description="Habilita las sugerencias y alertas proactivas en el Panel."
-                    isActive={aiFeatures.vicenteAssistant}
-                    onToggle={() => setAiFeatures({ ...aiFeatures, vicenteAssistant: !aiFeatures.vicenteAssistant })}
-                />
+            {/* Grupo 1: IA Vicente (Asistente Principal) */}
+            <div className="space-y-3">
+                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1">
+                    🤖 Asistente Virtual - IA Vicente
+                </h3>
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                    <AIToggle
+                        icon={<VicenteIcon className="w-6 h-6 text-amber-500" />}
+                        title="IA Vicente (Panel & Sugerencias Proactivas)"
+                        description="Habilita las alertas proactivas, la asistencia situacional y el chat de IA Vicente en el Panel."
+                        isActive={aiFeatures.vicenteAssistant}
+                        onToggle={() => setAiFeatures({ ...aiFeatures, vicenteAssistant: !aiFeatures.vicenteAssistant })}
+                    />
+                </div>
             </div>
 
-            {/* Data Management Section - Admin Only */}
-            <div className="mt-8">
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6">Gestión de Datos</h2>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md border border-slate-100 dark:border-slate-700 space-y-6">
-                    <div>
-                        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center">
-                            <TableCellsIcon className="w-5 h-5 mr-2 text-indigo-600 dark:text-indigo-400" />
-                            Optimización de Base de Datos
-                        </h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 mb-4">
-                            Cargar el currículo local actualizado a la base de datos (Firestore).
-                        </p>
-                        <div className="flex items-center gap-4">
-                            <button
-                                onClick={handleMigration}
-                                disabled={migrationStatus === 'loading' || migrationStatus === 'success'}
-                                className={`flex items-center px-4 py-2 font-bold text-white rounded-lg shadow transition-colors ${migrationStatus === 'success' ? 'bg-green-500 hover:bg-green-600' :
-                                    migrationStatus === 'error' ? 'bg-red-500 hover:bg-red-600' :
-                                        'bg-indigo-600 hover:bg-indigo-700'
-                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                            >
-                                {migrationStatus === 'loading' && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>}
-                                {migrationStatus === 'success' && <CheckIcon className="w-5 h-5 mr-2" />}
-                                {migrationStatus === 'error' && <ExclamationIcon className="w-5 h-5 mr-2" />}
-                                {migrationStatus === 'idle' && 'Iniciar Migración a Firestore'}
-                                {migrationStatus === 'loading' && 'Migrando...'}
-                                {migrationStatus === 'success' && 'Migración Exitosa'}
-                                {migrationStatus === 'error' && 'Error (Ver Consola)'}
-                            </button>
-                        </div>
-                    </div>
+            {/* Grupo 2: Módulo de Planificación */}
+            <div className="space-y-3">
+                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1">
+                    📅 Módulo de Planificación Pedagógica
+                </h3>
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                    <AIToggle
+                        icon={<PresentationChartBarIcon className="w-6 h-6 text-indigo-500" />}
+                        title="Planificación de Clases (Planificador)"
+                        description="Generación automatizada de secuencias didácticas y planes de clase basados en el currículo."
+                        isActive={aiFeatures.lessonPlanning}
+                        onToggle={() => setAiFeatures({ ...aiFeatures, lessonPlanning: !aiFeatures.lessonPlanning })}
+                    />
+                </div>
+            </div>
+
+            {/* Grupo 3: Herramientas Inteligentes de Aula */}
+            <div className="space-y-3">
+                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1">
+                    ✨ Herramientas Inteligentes de Evaluación y Análisis
+                </h3>
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+                    <AIToggle
+                        icon={<DocumentTextIcon className="w-6 h-6 text-indigo-500" />}
+                        title="Resumen de Estudiantes"
+                        description="Genera resúmenes automáticos del progreso y desempeño por estudiante."
+                        isActive={aiFeatures.summaryGeneration}
+                        onToggle={() => setAiFeatures({ ...aiFeatures, summaryGeneration: !aiFeatures.summaryGeneration })}
+                    />
+                    <AIToggle
+                        icon={<ChartBarIcon className="w-6 h-6 text-emerald-500" />}
+                        title="Sugerencia de Criterios"
+                        description="Vicente sugiere criterios de evaluación y rúbricas para los instrumentos."
+                        isActive={aiFeatures.criteriaGeneration}
+                        onToggle={() => setAiFeatures({ ...aiFeatures, criteriaGeneration: !aiFeatures.criteriaGeneration })}
+                    />
+                    <AIToggle
+                        icon={<UserPlusIcon className="w-6 h-6 text-blue-500" />}
+                        title="Extractor de Estudiantes"
+                        description="Reconocimiento óptico (OCR) de listas impresas para matricular estudiantes automáticamente."
+                        isActive={aiFeatures.studentExtraction}
+                        onToggle={() => setAiFeatures({ ...aiFeatures, studentExtraction: !aiFeatures.studentExtraction })}
+                    />
+                    <AIToggle
+                        icon={<MicrophoneIcon className="w-6 h-6 text-rose-500" />}
+                        title="Análisis de Audio"
+                        description="Transcripción y categorización inteligente de observaciones de aula grabadas por voz."
+                        isActive={aiFeatures.audioAnalysis}
+                        onToggle={() => setAiFeatures({ ...aiFeatures, audioAnalysis: !aiFeatures.audioAnalysis })}
+                    />
                 </div>
             </div>
         </div>

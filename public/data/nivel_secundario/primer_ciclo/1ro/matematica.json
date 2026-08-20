@@ -1,0 +1,113 @@
+{
+    "id": "nivel_secundario_1ro_matematica",
+    "level": "Nivel Secundario",
+    "grade": "1ro",
+    "subject": "Matemática",
+    "contents": [
+        {
+            "id": "MAT-1-CONT-NUM-C",
+            "text": "Identificación, lectura y escritura de números enteros y racionales. Concepto de economía y recursos financieros.",
+            "type": "conceptual",
+            "topic": "Numeración y Finanzas"
+        },
+        {
+            "id": "MAT-1-CONT-NUM-P",
+            "text": "Resolución de problemas de la cotidianidad que implican el uso de números racionales, cálculo de porcientos, interés simple, capital y monto.",
+            "type": "procedimental",
+            "topic": "Numeración y Finanzas"
+        },
+        {
+            "id": "MAT-1-CONT-NUM-A",
+            "text": "Interés por comunicar ideas matemáticas de forma clara y coherente. Disfrute en la resolución y análisis de acciones económicas y financieras.",
+            "type": "actitudinal",
+            "topic": "Numeración y Finanzas"
+        },
+        {
+            "id": "MAT-1-CONT-GEO-C",
+            "text": "Unidades de medidas cúbicas arbitrarias y del sistema métrico decimal. Conceptos de rectas, ángulos y Teorema de Pitágoras.",
+            "type": "conceptual",
+            "topic": "Geometría y Medición"
+        },
+        {
+            "id": "MAT-1-CONT-GEO-P",
+            "text": "Construcción de rectas paralelas, perpendiculares y bisectrices. Cálculo de volumen de prismas rectos rectangulares, triangulares y pirámides.",
+            "type": "procedimental",
+            "topic": "Geometría y Medición"
+        },
+        {
+            "id": "MAT-1-CONT-GEO-A",
+            "text": "Rigor, flexibilidad y originalidad en la resolución de problemas de áreas y volúmenes. Apreciación de la importancia de las unidades de medida.",
+            "type": "actitudinal",
+            "topic": "Geometría y Medición"
+        },
+        {
+            "id": "MAT-1-CONT-EST-C",
+            "text": "Medidas de tendencia central. Evento de un experimento aleatorio simple y probabilidad de ocurrencia.",
+            "type": "conceptual",
+            "topic": "Estadística y Probabilidad"
+        },
+        {
+            "id": "MAT-1-CONT-EST-P",
+            "text": "Recolección y organización de datos agrupados. Construcción e interpretación de gráficos estadísticos (histograma y polígono de frecuencia).",
+            "type": "procedimental",
+            "topic": "Estadística y Probabilidad"
+        },
+        {
+            "id": "MAT-1-CONT-EST-A",
+            "text": "Interés por crear representaciones gráficas sobre datos estadísticos a través del uso de dispositivos electrónicos.",
+            "type": "actitudinal",
+            "topic": "Estadística y Probabilidad"
+        }
+    ],
+    "competenciesSummary": [
+        {
+            "id": "CE1-MAT-1RO",
+            "code": "CE1-MAT",
+            "name": "Comunicativa",
+            "fundamentalId": "FC1",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE2-MAT-1RO",
+            "code": "CE2-MAT",
+            "name": "Pensamiento Lógico, Creativo y Crítico",
+            "fundamentalId": "FC2",
+            "evaluationGroup": "PC1"
+        },
+        {
+            "id": "CE3-MAT-1RO",
+            "code": "CE3-MAT",
+            "name": "Resolución de Problemas",
+            "fundamentalId": "FC3",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE4-MAT-1RO",
+            "code": "CE4-MAT",
+            "name": "Científica y Tecnológica",
+            "fundamentalId": "FC5",
+            "evaluationGroup": "PC2"
+        },
+        {
+            "id": "CE5-MAT-1RO",
+            "code": "CE5-MAT",
+            "name": "Ética y Ciudadana",
+            "fundamentalId": "FC4",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE6-MAT-1RO",
+            "code": "CE6-MAT",
+            "name": "Ambiental y de la Salud",
+            "fundamentalId": "FC6",
+            "evaluationGroup": "PC3"
+        },
+        {
+            "id": "CE7-MAT-1RO",
+            "code": "CE7-MAT",
+            "name": "Desarrollo Personal y Espiritual",
+            "fundamentalId": "FC7",
+            "evaluationGroup": "PC4"
+        }
+    ]
+}

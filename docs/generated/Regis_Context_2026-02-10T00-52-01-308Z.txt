@@ -1,0 +1,4245 @@
+REGIS PROJECT CONTEXT OBTAINED AT 2026-02-10T00:52:01.310Z
+================================================================
+
+
+
+--- START OF FILE: docs/ARCHITECTURE.md ---
+```md
+# Regis PWA: Architecture & Roadmap
+
+> **Document Status**: Living
+> **Target Audience**: Human Developers & AI Agents
+> **Tech Stack**: React 18 (Vite), Firebase (Auth, Firestore, Storage, Hosting), Tailwind CSS v4, Vitest
+> **Strategic Roadmap**: See [ROADMAP_REGIS](./ROADMAP_REGIS)
+
+---
+
+## 1. High-Level Technical Roadmap
+
+This roadmap tracks the *technical* implementation of the strategic goals found in `ROADMAP_REGIS`.
+
+| Phase | Goal | Key Features | Technical State | Exit Criteria |
+| :--- | :--- | :--- | :--- | :--- |
+| **I. Foundation (Offline Core)** | Establish a reliable, offline-first daily driver. | • Firestore Subcollections (Grades) ✅<br>• Offline Sync (IndexedDB) ⚠️<br>• Payments (Stripe) ⚠️<br>• Local Avatars | **STABILIZATION**.<br>Subcollections migrated.<br>Offline sync under testing (`offline-sync.test.ts`). | • Zero regression in offline mode.<br>• 95+ LightHouse Performance.<br>• All 19 sync tests passing. |
+| **II. Refinement & Intelligence** | Enhance UX and assist via AI. | • Onboarding (Quick Guide)<br>• AI Summaries (Gemini)<br>• Voice-to-Text Anecdotes<br>• Dark Mode | **IN PROGRESS**.<br>Gemini service mocked/skeleton.<br>Ul components ready. | • Gemini API integration complete.<br>• Responsive Design polished for mobile. |
+| **III. Scale & Compliance** | Security, Data Export, and Multi-term. | • Advanced Reports (jspdf)<br>• Historical Term archiving<br>• Role-Based Access (Admin) | **PLANNED**.<br>Admin structure exists.<br>Reports engine basic. | • Security Audit Pass.<br>• Strict Firestore Rules coverage. |
+
+---
+
+## 2. System Architecture Overview
+
+Regis follows a **Serverless, Offline-First** architecture reliant on the Firebase ecosystem.
+
+
+### Layer Diagram
+
+| Layer | Technology | Responsibilities | Contracts |
+| :--- | :--- | :--- | :--- |
+| **Client (PWA)** | React, Vite, Tailwind | • UI Rendering<br>• **State-Based Routing** (No standard router)<br>• Offline Data Access<br>• **Battery-Aware Sync** (ConnectionMonitor) | Talks to **Firebase SDK** + Specialized Services. |
+| **Service Layer** | TypeScript Modules | • `api.ts`: Core Sync Engine<br>• `authService.ts`: Identity<br>• `geminiService.ts`: AI<br>• `stripe.ts`: Payments | Centralizes logic. Components call these, NEVER DB directly. |
+| **State & Data** | Firestore SDK (Client) | • Real-time subscriptions (Optimized via Lazy Loading)<br>• Offline Persistence (IndexedDB)<br>• **Smart Backup** (LocalStorage Emergency Snapshot) | Acts as the "Source of Truth". Syncs with **Cloud** when online. |
+| **Backend Services** | Firebase (Cloud) | • Authentication (Identity Platform)<br>• NoSQL Database (Firestore)<br>• Object Storage (Storage) | Enforces **Security Rules**. Syncs data across devices. |
+
+### Key Constraints
+*   **Direct DB Access**: The client reads/writes directly to Firestore using the Web SDK. No intermediate API server.
+*   **Offline First**: The app **must** function if the network layer is severed. All critical reads/writes go through the Firestore Cache first.
+*   **Mobile First UI**: Components must be touch-friendly and responsive (`MobileGradeGrid`, `MobileBottomNav`).
+*   **Battery Efficiency**: Subscriptions must be lazy-loaded (e.g., Grades only for active class). Network pinging must be event-driven, not polled.
+
+---
+
+## 3. Frontend Architecture (React)
+
+### Directory Structure & Intent
+```text
+/d:/Programs/Dev/regis/
+├── components/           # UI Layer
+│   ├── [Feature]Manager.tsx # Smart Containers (Logic + View)
+│   ├── [Feature]Modal.tsx   # Edit/Action Dialogs
+│   ├── shared/              # Generic atoms (Tooltip, Toast)
+│   ├── admin/               # Admin-only views (Lazy loaded)
+│   └── mobile/              # Mobile-specific optimized views
+├── services/             # Logic Layer (External & IO)
+│   ├── api.ts            # Central Sync Engine & Firestore Wrappers
+│   ├── curriculumService.ts # Competencies & Indicators
+│   ├── offlineStorage.ts # Local file handling (IndexedDB support)
+│   └── geminiService.ts  # AI Integration
+├── tests/                # Verification Layer
+│   └── offline-sync.test.ts # Critical resilience suite
+├── types.ts              # Contract Layer (Single source of truth)
+└── App.tsx               # Main Controller (Routing, Global State)
+```
+
+### Core Architecture Rules
+1.  **Manager Pattern**: Major features (Gradebook, Attendance) use a "Manager" component as the main entry point to handle local state and fetching.
+2.  **Resilience First**: All Firestore writes MUST pass through `api.ts` -> `handleWriteError` wrapper.
+3.  **Strict separation**: Components receive data via listeners/hooks from `services/api.ts`.
+4.  **Custom Routing**: The app uses `App.tsx` state (`currentView`) for navigation, not React Router.
+5.  **Educational Levels**: The system dynamically adjusts logic (e.g., Competency Grouping) based on `Class.level` (Primary vs Secondary).
+
+
+---
+
+## 4. Firebase Architecture
+
+### Services Used
+*   **Authentication**: Email/Password + Google Auth.
+*   **Firestore**: Primary DB.
+*   **Storage**: Evidence photos/audio.
+*   **Hosting**: Static asset delivery (Targets: `beta`, `pro`).
+*   **Emulators**: Local dev environment (Firestore, Auth, Functions).
+
+### Data Model (Multi-Tenant by Design)
+Structure uses **Subcollections** for scalability.
+
+| Component | Collection Path | Document Structure | Notes |
+| :--- | :--- | :--- | :--- |
+| **Global Config** | `app_config/global_ai_features` | `{ featureName: boolean }` | Read-only for users. |
+| **User Data** | `users/{uid}/students/{studentId}` | `{ name, orderNumber, ... }` | Core entity. |
+|  | `users/{uid}/classes/{classId}` | `{ name, grade, section }` | |
+| **Grades** | `instruments/{instId}/grades/{studentId}` | `{ score, criteriaScores }` | **Subcollection**. Critical for querying. |
+| **Attendance** | `users/{uid}/attendance/{date}_{classId}` | `{ records: [...] }` | Batch storage per class/day. |
+| **Subscriptions**| `users/{uid}/subscriptions/{subId}` | `{ status, plan, period }` | Syncs with Stripe. |
+| **Logs** | `system_logs/{logId}` | `{ error, context, timestamp }` | Remote telemetry. |
+
+### Security Philosophy
+*   **Rules**: `allow read, write: if request.auth.uid == userId;`
+*   **Validation**: Validate schema types in rules (e.g., `score is number`).
+*   **Trust**: Client is **untrusted**.
+
+---
+
+## 5. Dev & Deployment Workflow
+
+### Local Development
+1.  **Install**: `npm install`
+2.  **Dev Server**: `npm run dev` (Vite @ localhost:5173).
+3.  **Testing**: `npm run test` (Vitest).
+
+### Deployment Flow
+*   **Beta/Dev**: `npm run deploy:dev` (Uses `firebase.dev.json`).
+*   **Production**: `npm run deploy:web:prod` (Target: `pro`).
+
+### Environments
+*   **Development**: Localhost + Firebase Dev Project (`dev` alias).
+*   **Production**: `teacher-productivity-kit.web.app` (Firebase Prod Project).
+
+---
+
+## 6. Rules for AI Agents Working on This Codebase
+
+### ✅ Safe to Change
+*   **UI Components**: Styling (Tailwind v4), Layout.
+*   **Service Logic**: Updating `api.ts` or `xxxService.ts` internals.
+*   **Types**: Adding *optional* fields to `types.ts`.
+
+### ⚠️ Requires Human Approval
+*   **Destructive Actions**: Deleting collections or bulk data operations.
+*   **Infrastructure**: Changing `firebase.json` or `firestore.rules`.
+*   **Dependencies**: Adding new npm packages.
+*   **Schema Changes**: Changing `types.ts` core interfaces (breaking changes).
+
+### 🚀 How to Add New Features
+1.  **Define Type**: Add interface to `src/types.ts`.
+2.  **Service Layer**: Add CRUD methods to `src/services/api.ts` or specific service.
+3.  **Manager Component**: Create `[Feature]Manager.tsx`.
+4.  **Verification**:
+    *   **MUST** Test **OFFLINE** behavior.
+    *   **MUST** Add/Update tests in `tests/`.
+
+### ⛔ Critical Constraints
+*   **NEVER** bypass `services/api.ts` for DB calls.
+*   **NEVER** use `window.location` for navigation (Use `App.tsx` callbacks).
+*   **NEVER** break the build (TS strict mode is ON).
+*   **Check Tailwind Version**: We use v4 (CSS variables). Ensure generated styles are compatible.
+
+```
+--- END OF FILE: docs/ARCHITECTURE.md ---
+
+
+--- START OF FILE: docs/ROADMAP_REGIS ---
+```txt
+ROADMAP REGIS
+Desarrollo + Adopción Masiva (12–18 meses)
+FASE 0 — BASE CONSOLIDADA (AHORA – 1 mes)
+Objetivo: que REGIS sea incuestionablemente confiable.
+Desarrollo
+● Congelar flujos UX validados (asistencia, calificador, reportes)
+● Estabilizar navegación (back, CTA, headers contextuales)
+● Copy claro en acciones críticas
+● Métricas mínimas de uso (login, guardar, volver)
+● Backup y monitoreo básico Firestore
+Producto
+● Beta cerrada (≤15 docentes)
+● Cero features nuevas
+● Solo corrección y refinamiento
+KPI clave
+● Docentes activos ≥ 40–50% semanal
+● Uso en días distintos (no solo prueba)
+👉 Riesgo si se salta esta fase: crecimiento sobre base inestable.
+FASE 1 — BETA AMPLIADA CONTROLADA (2–3
+meses)
+Objetivo: validación en contextos reales diversos.
+Desarrollo
+● Optimización performance PWA
+● Mejoras offline edge-cases
+● UI final de dashboards
+● Exportes/reportes 100% confiables
+Producto
+● Ampliar a 50–100 docentes
+● Diferentes centros / niveles
+● Canal formal de feedback
+Negocio
+● Definir propuesta de valor clara:
+“REGIS ahorra X horas al mes al docente”
+KPI clave
+● Retención 30 días
+● Uso recurrente sin acompañamiento
+👉 Aquí se decide si REGIS escala o se estanca.
+FASE 2 — LANZAMIENTO PÚBLICO DOCENTE (4–6
+meses)
+Objetivo: adopción orgánica entre docentes.
+Desarrollo
+● Activar IA selectiva y asistida:
+○ Criterios de evaluación
+○ Resúmenes pedagógicos
+● Onboarding guiado
+● Centro de ayuda ligero
+Producto
+● Plan gratuito funcional (core)
+● Plan pago (tiempo + valor):
+○ IA
+○ Reportes avanzados
+○ Soporte prioritario
+Distribución
+● Boca a boca docente
+● WhatsApp
+● Demostraciones simples
+● Nada de marketing pesado
+KPI clave
+● Conversión free → pago
+● Docentes recomendando a otros
+👉 Moat inicial: hábito + tiempo ahorrado.
+FASE 3 — INTEGRACIONES DE COMUNICACIÓN (6–9
+meses)
+Objetivo: aumentar dependencia del ecosistema.
+Desarrollo
+● Integración WhatsApp:
+○ Padres: notificaciones
+○ Estudiantes: consignas, recordatorios
+● Agente IA (“Vicente” u otro):
+○ Explicaciones
+○ Recordatorios
+○ Resúmenes
+Producto
+● REGIS deja de ser solo “registro”
+● Se convierte en hub operativo del aula
+KPI clave
+● Uso semanal
+● Docentes que no quieren volver atrás
+👉 Aquí REGIS se vuelve difícil de reemplazar.
+FASE 4 — ECOSISTEMA EDUCATIVO (9–18 meses)
+Objetivo: expansión estratégica, no masiva sin control.
+Desarrollo
+● App para estudiantes (lúdica, tipo “misiones”)
+● Integración con estándares curriculares
+● Analítica pedagógica
+Producto
+● Ecosistema:
+○ Docente (REGIS)
+○ Estudiante (gamificado)
+○ Padre (informativo)
+Estrategia
+● Alianzas institucionales
+● Pilotos con centros
+● No competir frontalmente con el Estado: complementar
+KPI clave
+● Centros completos usando REGIS
+● Contratos institucionales
+RESUMEN EJECUTIVO (1 línea por fase)
+● Fase 0: estabilidad
+● Fase 1: validación amplia
+● Fase 2: monetización docente
+● Fase 3: dependencia del ecosistema
+● Fase 4: expansión estructural
+Advertencia clave (como cofundador)
+El mayor riesgo de REGIS no es la competencia.
+Es querer llegar a la Fase 4 sin dominar la Fase 1.
+```
+--- END OF FILE: docs/ROADMAP_REGIS ---
+
+
+--- START OF FILE: docs/OFFLINE_STRATEGY.md ---
+```md
+# Offline Synchronization Strategy
+
+## Core Principles
+1. **Optimistic UI**: All user actions are reflected immediately in the local state (`localStorage`) and notified via `notifyLocalChange`.
+2. **Background Sync**: Firestore writes happen in the background. If the user is offline, the Firebase SDK queues the writes; however, our `api.ts` adds an extra layer of explicit retry logic for critical operations.
+3. **Resilience Layer**: Exponential backoff retries (3 attempts: 1s, 2s, 4s) for transient Firestore errors (e.g., `unavailable`).
+4. **Standardized Error Handling**: All write operations are wrapped in `handleWriteError`, which manages UI notifications (`syncEvents`) and remote logging.
+
+## Data Model Enhancements
+- All syncable entities now inherit from `BaseEntity`.
+- **`updatedAt`**: ISO String timestamp added to every write. Used for deterministic "Last-Write-Wins" resolution.
+- **`schemaVersion`**: Injected into every document to handle future migrations.
+
+## Resilience Mechanism: `handleWriteError` & `withRetry`
+Implemented in `services/api.ts`, this dual-layer strategy ensures:
+- **`withRetry`**: Exponential backoff for network-related failures.
+- **`handleWriteError`**: 
+  - Instant failure UI notifications on security/permission errors.
+  - Remote telemetry logging to `system_logs` for all write failures.
+  - Contextual error tagging for easier debugging.
+
+## Conflict Handling & Structural Integrity
+- **Subcollections migration**: The `grades` model has been migrated from bulk documents to student-indexed subcollections, eliminating the "Last-Write-Wins" overwrite bug.
+- **Merge Strategies**: All `setDoc` operations now consider whether a merge is appropriate, though subcollections largely render this moot for individual records.
+
+## UI Feedback: `SyncStatusIndicator`
+Integrated into the application header to provide real-time status:
+- `offline`: No network connection detected.
+- `syncing`: Pending Firestore writes.
+- `synced`: All writes successful.
+- `error`: Permission denied or persistent failure (recorded in `system_logs`).
+
+## Verification
+A suite of 18 automated tests in `tests/offline-sync.test.ts` validates:
+- Persistence during offline bouts.
+- Successful recovery on reconnection.
+- Retry logic and suppression of retries on permission errors.
+- Telemetry logging verification.
+- Data sanitization and integrity checks.
+
+```
+--- END OF FILE: docs/OFFLINE_STRATEGY.md ---
+
+
+--- START OF FILE: docs/NOTEBOOKLM_WORKFLOW.md ---
+```md
+# Integración de NotebookLM al Workflow de Desarrollo (Regis)
+
+Este documento define la estrategia para utilizar **NotebookLM** como un "Arquitecto Senior AI" o "Product Manager Técnico" dentro del ciclo de vida de desarrollo de Regis.
+
+NotebookLM se convierte en la **memoria viva** del proyecto, respondiendo preguntas basadas estrictamente en nuestra documentación técnica y código fuente.
+
+## 1. Definición del Corpus (La "Fuente de la Verdad")
+
+Para que NotebookLM sea efectivo, debe nutrirse de los documentos correctos. El "Corpus Regis" se compone de 3 categorías:
+
+### A. Documentación Core (Estratégico)
+Estos archivos definen **qué** estamos construyendo y **por qué**.
+*   `docs/ARCHITECTURE.md`: Reglas inquebrantables del sistema (Offline-first, Manager Pattern).
+*   `docs/ROADMAP_REGIS`: Hacia dónde vamos (MVP vs Futuro).
+*   `docs/OFFLINE_STRATEGY.md`: La lógica más compleja del sistema.
+*   `types.ts`: El contrato de datos fundamental.
+
+### B. Contexto de Implementación (Táctico)
+Estos archivos explican **cómo** funciona el sistema actualmente.
+*   `services/api.ts`: El motor de sincronización.
+*   `services/authService.ts`: Manejo de identidad.
+*   `docs/INCIDENT_DATA_LOSS.md`: Lecciones aprendidas (para evitar regresiones).
+
+### C. Especificaciones de Funcionalidad (Feature Specs)
+Antes de codificar, subimos el "mini-spec" de la tarea actual.
+*   `docs/[FEATURE_NAME_PLAN].md` (Si existe).
+
+---
+
+## 2. Flujos de Trabajo (Use Cases)
+
+### Caso 1: Validación de Arquitectura (Pre-Code)
+Antes de escribir una nueva feature (ej. "Sistema de Badges"), consulta al Notebook.
+
+**Prompt Sugerido:**
+> "Actúa como el Lead Architect de Regis. Basado en `ARCHITECTURE.md` y `types.ts`, evalúa mi propuesta para el sistema de Badges (ver abajo). ¿Viola algún principio de 'Offline First' o 'No Direct DB Access'? ¿Cómo debería estructurar los datos en Firestore?"
+
+### Caso 2: Onboarding & Explicación de Código
+Cuando te enfrentes a un bug complejo en `offline-sync.test.ts`.
+
+**Prompt Sugerido:**
+> "Explícame cómo funciona la lógica de resolución de conflictos en `api.ts` según la documentación de `OFFLINE_STRATEGY.md`. ¿Por qué podría estar fallando el test de 'retry logic'?"
+
+### Caso 3: Generación de Datos (Curriculum JSON)
+Cuando necesites agregar una nueva asignatura o grado (ej. "3ro de Secundaria - Ciencias Sociales").
+
+**Prompt Sugerido:**
+> "Basado en la estructura de `curriculums.json` y el ejemplo de `competencies_matematica.json`, genera los archivos JSON necesarios para 'Ciencias Sociales 3ro Secundaria'.
+>
+> **Input:**
+> - Asignatura: Ciencias Sociales
+> - Grado: 3ro Secundaria
+> - Competencias Fundamentales: Ética y Ciudadana (FC1), Comunicativa (FC2)...
+> - Contenidos: [Lista de temas...]
+>
+> Genera el JSON para `curriculums.json` (entrada nueva) y el archivo `competencies_sociales_3ro.json` completo con indicadores sugeridos."
+
+### Caso 4: Generación de Documentación y Changelogs
+Al terminar un sprint o una feature grande.
+
+**Prompt Sugerido:**
+> "Basado en los cambios recientes en `api.ts` y el nuevo `MobileGradeGrid.tsx`, redacta un párrafo para el `CHANGELOG.md` que explique las mejoras de performance a un usuario no técnico."
+
+---
+
+## 3. Automatización: El script `generate-context`
+
+Para evitar subir 20 archivos manualmente, crearemos un script que concatena los archivos más importantes en uno solo (`Regis_Context_Snapshot.txt`) para subirlo fácilmente a NotebookLM.
+
+**Comando:**
+```bash
+npm run gen:context
+```
+
+**Salida:**
+Un archivo en `docs/generated/Regis_Context_[FECHA].txt` que contiene:
+1.  Todo `docs/` (seleccionados).
+2.  `types.ts`.
+3.  `services/api.ts`.
+4.  `package.json`.
+
+---
+
+## 4. Rutina de Mantenimiento
+
+1.  **Cada Sprint Start**: Correr `npm run gen:context` y actualizar la fuente en NotebookLM ("Add Source" -> Update).
+2.  **Cada Cambio de Arquitectura**: Si se modifica `ARCHITECTURE.md`, es **obligatorio** actualizar el Notebook.
+
+```
+--- END OF FILE: docs/NOTEBOOKLM_WORKFLOW.md ---
+
+
+--- START OF FILE: types.ts ---
+```ts
+
+
+export type View = 'DASHBOARD' | 'STUDENTS' | 'ATTENDANCE' | 'REPORTS' | 'STUDENT_PROFILE' | 'GRADEBOOK_GRADES' | 'GRADEBOOK_INSTRUMENTS' | 'GRADEBOOK_COMPETENCIES' | 'SETTINGS' | 'SETTINGS_APPEARANCE' | 'SETTINGS_AI' | 'SETTINGS_RECYCLE_BIN' | 'TEACHER_PROFILE' | 'CALENDAR' | 'CLASSES' | 'LESSON_PLANNER' | 'ADMIN_DASHBOARD';
+
+export type FontSize = 'sm' | 'base' | 'lg';
+
+export const CURRENT_SCHEMA_VERSION = 1;
+export const APP_VERSION = 'v1.6.4 Build 0207.0049'; // mes.dia.hora.min
+
+export interface BaseEntity {
+  schemaVersion?: number;
+  userId?: string;
+  updatedAt?: string; // ISO String for last-write-wins resolution
+}
+
+export interface Class extends BaseEntity {
+  id: string;
+  name: string; // Subject name, e.g., "Matemática"
+  grade: string;
+  section: string; // e.g., "A", "B", "C"
+  schoolYear: string; // e.g., "2024-2025"
+  schedule: string; // e.g., "Lunes y Miércoles 9:00 - 10:30 AM"
+  color: string; // e.g., '#ef4444' for styling
+  level?: string; // e.g., "Nivel Primario"
+}
+
+export interface Student extends BaseEntity {
+  id: string;
+  enrollmentId?: string; // Matricula (Student ID visible to user)
+  classId: string;
+  name: string; // Kept for backward compatibility (firstName + ' ' + lastName)
+  firstName?: string;
+  lastName?: string;
+  orderNumber?: number;
+  avatar: string;
+  gender: 'M' | 'F';
+  birthDate?: string; // YYYY-MM-DD
+  email?: string;
+  phone?: string;
+  isRepeater?: boolean;
+  healthInfo?: {
+    bloodType?: string;
+    allergies?: string;
+    medications?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+  };
+  familyInfo?: {
+    motherName?: string;
+    motherPhone?: string;
+    fatherName?: string;
+    fatherPhone?: string;
+    guardianName?: string;
+    guardianPhone?: string;
+    address?: string;
+  };
+  connectivityInfo?: {
+    hasInternet?: boolean;
+    deviceAccess?: string[];
+    platformFamiliarity?: string;
+  };
+}
+
+export enum AttendanceStatus {
+  PRESENT = 'Presente',
+  ABSENT = 'Ausente',
+  LATE = 'Tarde',
+  EXCUSED = 'Excusa',
+}
+
+export interface AttendanceRecord extends BaseEntity {
+  studentId: string;
+  date: string; // YYYY-MM-DD
+  status: AttendanceStatus;
+}
+
+export interface DailyNote extends BaseEntity {
+  id: string;
+  classId: string;
+  date: string; // YYYY-MM-DD
+  note: string;
+}
+
+export interface AnecdotalRecord extends BaseEntity {
+  id: string;
+  studentId: string;
+  date: string; // ISO string
+  note: string;
+  category: 'Académico' | 'Comportamiento' | 'Social' | 'Otro';
+  photoUrl?: string;
+  audioUrl?: string;
+}
+
+// Gradebook Types
+export type EvaluationPeriod = 'P1' | 'P2' | 'P3' | 'P4';
+export type CompetencyGroup = 'G1' | 'G2' | 'G3' | 'G4';
+export type PrimarioCompetencyGroup = 'GP1' | 'GP2' | 'GP3'; // Primario uses 3 groups
+
+
+export interface FundamentalCompetency extends BaseEntity {
+  id: string;
+  name: string;
+  description: string;
+  group: CompetencyGroup;
+}
+
+export enum AchievementLevel {
+  BEGINNING = 'Inicio',
+  DEVELOPING = 'En Desarrollo',
+  PROFICIENT = 'Logrado',
+  EXEMPLARY = 'Excelente',
+}
+
+export interface Competency extends BaseEntity {
+  id: string;
+  classId: string;
+  fundamentalId: string;
+  code: string; // e.g., CE-LEI4
+  name: string;
+  description: string;
+  indicators: { id: string; text: string; }[];
+}
+
+export interface Criterion {
+  id: string;
+  text: string;
+}
+
+export type InstrumentType = 'Prueba Corta' | 'Examen' | 'Tarea' | 'Participación' | 'Proyecto' | 'Lista de Cotejo';
+
+export interface EvaluationInstrument extends BaseEntity {
+  id: string;
+  classId: string;
+  name: string;
+  type: InstrumentType;
+  date: string; // YYYY-MM-DD
+  totalPoints: number;
+  competencyIds: string[];
+  period: EvaluationPeriod;
+  contenidos?: string;
+  actividades?: string;
+  criteria?: Criterion[];
+}
+
+export interface Grade extends BaseEntity {
+  id: string; // Historically studentId_instrumentId, will transition to studentId
+  studentId: string;
+  instrumentId: string;
+  score: number | null; // null for not yet graded
+  criteriaScores?: Record<string, boolean | number | null>; // { criterionId: score }
+  updatedAt?: string | any; // ISO string or Firestore Timestamp
+}
+
+export interface GradeDocument {
+  userId: string;
+  score: number | null;
+  criteriaScores?: Record<string, boolean | number | null>;
+  updatedAt: any; // serverTimestamp()
+}
+
+export interface RecoveryGrade extends BaseEntity {
+  id: string;
+  studentId: string;
+  classId: string;
+  period: EvaluationPeriod;
+  competencyGroup: CompetencyGroup;
+  score: number;
+}
+
+
+// Teacher Profile Types
+export interface TeacherProfileData extends BaseEntity {
+  name: string;
+  email: string;
+  phone: string;
+  specialization: string;
+  experienceYears: number;
+  profilePictureUrl: string;
+  _isFallback?: boolean;
+}
+
+export interface JournalEntry {
+  id: string;
+  date: string; // ISO string
+  content: string;
+}
+
+export interface Resource {
+  id: string;
+  title: string;
+  url: string;
+  description: string;
+}
+
+// User Authentication
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  password: string; // In a real app, this should be a salted hash
+}
+
+// Calendar Types
+export interface CustomEvent {
+  id: string;
+  date: string; // YYYY-MM-DD
+  title: string;
+  description?: string;
+  time?: string; // e.g., "10:00"
+  color: string; // e.g., '#ef4444'
+}
+
+// AI Features
+export interface AIFeatures {
+  summaryGeneration: boolean; // "Vicente Resume"
+  criteriaGeneration: boolean; // "Vicente Criterios"
+  lessonPlanning: boolean; // "Planificar con Vicente"
+  studentExtraction: boolean; // "Vicente Extractor"
+  audioAnalysis: boolean; // "Vicente Audio"
+  vicenteAssistant: boolean; // "Vicente Dashboard"
+}
+
+// Subscription Types (Premium Account System)
+export type SubscriptionTier = 'free' | 'premium';
+export type SubscriptionStatus = 'active' | 'trial' | 'expired' | 'cancelled';
+export type SubscriptionSource = 'manual' | 'stripe' | 'appstore' | 'playstore';
+
+export interface UserSubscription {
+  tier: SubscriptionTier;
+  status: SubscriptionStatus;
+  expiresAt: string | null; // ISO string or null for lifetime
+  createdAt: string;
+  updatedAt: string;
+  source: SubscriptionSource;
+  grandfathered?: boolean; // True if user had >6 classes before limit enforcement
+  // Usage tracking for free tier limits
+  usage?: {
+    studentExtractions?: {
+      count: number;
+      lastReset: string; // ISO string of last monthly reset
+    };
+  };
+}
+
+export interface PricingPlan {
+  id: 'free' | 'premium_monthly';
+  name: string;
+  tier: SubscriptionTier;
+  price: number; // USD
+  interval: 'month' | null;
+  stripePriceId?: string; // Stripe Price ID
+  features: string[];
+}
+
+
+// Lesson Planner Types
+export interface LessonActivity {
+  time: string;
+  description: string;
+}
+
+export interface LessonPlan {
+  id: string;
+  classId: string;
+  topic: string;
+  date: string;
+  objectives: string[];
+  materials: string[];
+  activities: LessonActivity[];
+}
+
+// --- Firestore Optimized Curriculum Structures ---
+
+// Collection: /curriculums
+export interface FirestoreCurriculum {
+  id: string; // e.g., "primario_5to_lengua"
+  level: string;
+  grade: string;
+  subject: string;
+  contents: { id: string; text: string }[]; // Aggregated Grade-level contents
+  competenciesSummary: {
+    id: string;
+    code: string;
+    name: string;
+    fundamentalId: string;
+  }[];
+}
+
+// Collection: /competencies
+export interface FirestoreCompetency {
+  id: string;
+  curriculumId: string;
+  code: string;
+  name: string;
+  description: string;
+  fundamentalId: string;
+  // In a real schema, you might split contents here, but based on source JSON, 
+  // contents are often at Grade level. We'll keep indicators here.
+  indicators: { id: string; text: string }[];
+}
+
+// Collection: /indicators
+export interface FirestoreIndicator {
+  id: string;
+  text: string;
+  curriculumId: string;
+  competencyId: string;
+  grade: string;
+  subject: string;
+}
+
+// Legacy Curriculum Data Types (Used for parsing initial JSON)
+export interface CurriculumCompetency {
+  fundamentalId: string;
+  code: string;
+  name: string;
+  description: string;
+  indicators: { id: string; text: string }[];
+}
+
+export interface CurriculumGrade {
+  grade: string;
+  contents: { id: string; text: string }[];
+  competencies: CurriculumCompetency[];
+}
+
+export interface CurriculumSubject {
+  name: string;
+  grades: CurriculumGrade[];
+}
+
+export interface CurriculumLevel {
+  name: string;
+  subjects: CurriculumSubject[];
+}
+
+export interface CurriculumData {
+  levels: CurriculumLevel[];
+}
+```
+--- END OF FILE: types.ts ---
+
+
+--- START OF FILE: services/api.ts ---
+```ts
+
+import { db, auth } from '../firebase';
+import * as mockData from './mockData';
+import { uploadFile } from './storageService';
+import { getOfflineFile, deleteOfflineFile } from './offlineStorage';
+import {
+    collection,
+    getDocs,
+    doc,
+    setDoc,
+    getDoc,
+    updateDoc,
+    deleteDoc,
+    writeBatch,
+    query,
+    where,
+    onSnapshot,
+    addDoc,
+    serverTimestamp
+} from "firebase/firestore";
+import type { Class, Student, AttendanceRecord, AnecdotalRecord, Competency, EvaluationInstrument, Grade, GradeDocument, FundamentalCompetency, TeacherProfileData, JournalEntry, Resource, User, CustomEvent, RecoveryGrade, FontSize, DailyNote, CurriculumData, LessonPlan, AIFeatures, BaseEntity, UserSubscription } from '../types';
+import { CURRENT_SCHEMA_VERSION } from '../types';
+
+let curriculumCache: CurriculumData | null = null;
+
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error';
+
+// Bus de eventos simple para notificar estados de sincronización
+export const syncEvents = {
+    status: 'idle' as SyncStatus,
+    listeners: [] as ((status: SyncStatus) => void)[],
+    subscribe(callback: (status: SyncStatus) => void) {
+        this.listeners.push(callback);
+        // Notify current state to new subscriber
+        callback(this.status);
+        return () => { this.listeners = this.listeners.filter(l => l !== callback); };
+    },
+    notify(status: SyncStatus) {
+        this.status = status;
+        this.listeners.forEach(l => l(status));
+    }
+};
+
+const COLLECTIONS = {
+    USERS: 'users',
+    CLASSES: 'classes',
+    STUDENTS: 'students',
+    DELETED_STUDENTS: 'deleted_students',
+    DELETED_CLASSES: 'deleted_classes',
+    INSTRUMENTS: 'instruments',
+    ANECDOTES: 'anecdotes',
+    USER_COMPETENCIES: 'user_competencies',
+    FUNDAMENTAL_COMPETENCIES: 'fundamental_competencies',
+    TEACHER_PROFILE: 'teacher_profile',
+    JOURNAL: 'journal',
+    RESOURCES: 'resources',
+    CUSTOM_EVENTS: 'custom_events',
+    LISTS: 'lists',
+    LESSON_PLANS: 'lesson_plans',
+    APP_CONFIG: 'app_config',
+    GRADES: 'grades',
+    ATTENDANCE: 'attendance',
+    SUBSCRIPTIONS: 'subscriptions',
+    SYSTEM_LOGS: 'system_logs'
+};
+
+/**
+ * Feature flag: Subcollection model for grades
+ * Set to false for emergency rollback to bulk list model
+ */
+const USE_SUBCOLLECTION_GRADES = true;
+
+/**
+ * Get path to grades subcollection for an instrument
+ */
+const getGradesCollectionPath = (instrumentId: string) =>
+    `${COLLECTIONS.INSTRUMENTS}/${instrumentId}/grades`;
+
+/**
+ * Get path to specific grade document
+ */
+const getGradeDocPath = (instrumentId: string, studentId: string) =>
+    `${getGradesCollectionPath(instrumentId)}/${studentId}`;
+
+const mockFundamentalCompetencies: FundamentalCompetency[] = [
+    { id: 'FC1', name: 'Comunicativa', description: 'Expresa e interpreta conceptos, pensamientos, sentimientos y hechos de forma oral y escrita.', group: 'G1' },
+    { id: 'FC2', name: 'Pensamiento Lógico, Creativo y Crítico', description: 'Elabora y argumenta sus juicios y opiniones, y aborda la realidad de forma reflexiva.', group: 'G2' },
+    { id: 'FC3', name: 'Resolución de Problemas', description: 'Identifica y analiza problemas para generar soluciones efectivas y pertinentes.', group: 'G2' },
+    { id: 'FC4', name: 'Ética y Ciudadana', description: 'Actúa con autonomía, responsabilidad y respeto a los principios éticos y democráticos.', group: 'G3' },
+    { id: 'FC5', name: 'Científica y Tecnológica', description: 'Aplica el conocimiento científico y tecnológico para comprender y transformar la realidad.', group: 'G4' },
+    { id: 'FC6', name: 'Ambiental y de la Salud', description: 'Adopta hábitos de vida saludable y actúa con responsabilidad ante el medio ambiente.', group: 'G4' },
+    { id: 'FC7', name: 'Desarrollo Personal y Espiritual', description: 'Desarrolla una autoimagen equilibrada y una relación sana consigo mismo y con los demás.', group: 'G3' },
+];
+
+const defaultTeacherProfile: TeacherProfileData = { name: 'Usuario', email: 'usuario@example.com', phone: '', specialization: 'Educación', experienceYears: 0, profilePictureUrl: 'https://ui-avatars.com/api/?name=User&background=random' };
+
+export const isVirtualMode = () => localStorage.getItem('regis_virtual_demo') === 'true' || !auth?.currentUser || auth.currentUser.isAnonymous;
+
+const localListeners: Record<string, ((data: any) => void)[]> = {};
+
+const subscribeToLocal = (key: string, callback: (data: any) => void) => {
+    if (!localListeners[key]) localListeners[key] = [];
+    localListeners[key].push(callback);
+    return () => {
+        localListeners[key] = localListeners[key].filter(cb => cb !== callback);
+    };
+};
+
+const notifyLocalChange = (key: string, data: any) => {
+    if (localListeners[key]) {
+        localListeners[key].forEach(cb => cb(data));
+    }
+};
+
+const getLocal = <T>(key: string): T[] => {
+    try {
+        const data = localStorage.getItem(`regis_store_${key}`);
+        return data ? JSON.parse(data) : [];
+    } catch { return []; }
+};
+
+const setLocal = (key: string, data: any) => {
+    localStorage.setItem(`regis_store_${key}`, JSON.stringify(data));
+    notifyLocalChange(key, data);
+};
+
+export const getCurrentUserId = () => {
+    if (auth?.currentUser?.uid) return auth.currentUser.uid;
+    if (isVirtualMode()) return 'DEMO_GUEST_USER';
+    return null;
+};
+
+// --- Connection Monitoring ---
+type ConnectionStatus = 'online' | 'offline';
+let connectionStatus: ConnectionStatus = 'online';
+const connectionListeners: ((status: ConnectionStatus) => void)[] = [];
+
+const notifyConnectionChange = (status: ConnectionStatus) => {
+    if (connectionStatus === status) return;
+    connectionStatus = status;
+    connectionListeners.forEach(l => l(status));
+};
+
+export const isValidNetwork = () => connectionStatus === 'online';
+
+export const checkConnection = async (): Promise<ConnectionStatus> => {
+    // If browser thinks we are offline, we are offline.
+    if (!navigator.onLine) {
+        notifyConnectionChange('offline');
+        return 'offline';
+    }
+
+    // Check for slow connection (Network Information API)
+    const connection = (navigator as any).connection;
+    if (connection) {
+        const effectiveType = connection.effectiveType; // 'slow-2g', '2g', '3g', or '4g'
+        if (effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g') {
+            console.warn(`Connection is too slow (${effectiveType}). Switching to offline mode.`);
+            notifyConnectionChange('offline');
+            return 'offline';
+        }
+    }
+
+    const timeoutPromise = new Promise<ConnectionStatus>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000)); // 3s strict timeout
+
+    try {
+        await Promise.race([
+            fetch('/?ping=' + Date.now(), { method: 'HEAD', cache: 'no-store' }),
+            timeoutPromise
+        ]);
+
+        // If we get here, latency < 3s
+        notifyConnectionChange('online');
+        // Trigger sync if coming online
+        processPendingFileUploads();
+        return 'online';
+    } catch (e) {
+        // Timeout or fetch error
+        console.warn("Latency check failed or timed out. Switching to offline mode.");
+        notifyConnectionChange('offline');
+        return 'offline';
+    }
+};
+
+export const monitorConnection = () => {
+    if (typeof window === 'undefined') return;
+
+    // 1. Initial check
+    checkConnection();
+
+    // 2. Periodic Latency Check (Ping) - DISABLED for battery optimization
+    // Only check on window focus or network events
+    // setInterval(checkConnection, 30000);
+
+    // 3. Browser Online/Offline events
+    window.addEventListener('online', () => checkConnection());
+    window.addEventListener('offline', () => notifyConnectionChange('offline'));
+    window.addEventListener('focus', () => checkConnection()); // Check when app comes to foreground
+};
+
+export const subscribeToConnectionStatus = (callback: (status: ConnectionStatus) => void) => {
+    callback(connectionStatus); // Initial state
+    connectionListeners.push(callback);
+    return () => {
+        const index = connectionListeners.indexOf(callback);
+        if (index > -1) connectionListeners.splice(index, 1);
+    };
+};
+// -----------------------------
+
+const processPendingFileUploads = async () => {
+    if (!isValidNetwork()) return;
+    console.log("Checking for pending offline file uploads...");
+
+    const uid = getCurrentUserId();
+    if (!uid || isVirtualMode()) return;
+
+    // 1. Check Anecdotes
+    const anecdotes = getLocal<AnecdotalRecord>(COLLECTIONS.ANECDOTES);
+    let anecdotesUpdated = false;
+
+    const updatedAnecdotes = await Promise.all(anecdotes.map(async (record) => {
+        let changed = false;
+        let newRecord = { ...record };
+
+        const processField = async (field: 'photoUrl' | 'audioUrl') => {
+            const url = newRecord[field];
+            if (url && url.startsWith('offline:')) {
+                try {
+                    const blob = await getOfflineFile(url);
+                    if (blob) {
+                        console.log(`Uploading pending file for anecdote ${record.id} (${field})...`);
+                        // Generate path similar to AddAnecdoteModal logic
+                        const ext = field === 'photoUrl' ? 'jpg' : 'webm'; // Basic assumption, or infer from blob type
+                        const path = `users/${uid}/evidence/${field === 'photoUrl' ? 'photos' : 'audio'}/${Date.now()}_${generateId('F')}.${ext}`;
+
+                        const newUrl = await uploadFile(blob, path);
+                        newRecord[field] = newUrl;
+                        changed = true;
+
+                        // Clean up offline file
+                        await deleteOfflineFile(url);
+                    } else {
+                        console.warn(`Offline file not found for ${url}, keeping offline ref.`);
+                    }
+                } catch (e) {
+                    console.error(`Failed to sync offline file ${url}:`, e);
+                }
+            }
+        };
+
+        await processField('photoUrl');
+        await processField('audioUrl');
+
+        if (changed) anecdotesUpdated = true;
+        return newRecord;
+    }));
+
+    if (anecdotesUpdated) {
+        console.log("Syncing updated anecdotes with Cloud URLs...");
+        setLocal(COLLECTIONS.ANECDOTES, updatedAnecdotes);
+
+        const batch = writeBatch(db);
+        updatedAnecdotes.forEach(r => {
+            const oldRecord = anecdotes.find(old => old.id === r.id);
+            // Only write to Firestore if URLs actually changed
+            if (oldRecord && (oldRecord.photoUrl !== r.photoUrl || oldRecord.audioUrl !== r.audioUrl)) {
+                batch.set(doc(db, COLLECTIONS.ANECDOTES, r.id), sanitizeData({ ...r, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION }));
+            }
+        });
+
+        try {
+            await batch.commit();
+        } catch (e) {
+            await logRemoteError(e, 'syncOfflineFiles');
+        }
+    }
+};
+
+
+
+const FIREBASE_RETRY_CONFIG = {
+    maxAttempts: 3,
+    baseDelay: 1000, // 1s
+};
+
+async function withRetry<T>(fn: () => Promise<T>, attempts: number = 0): Promise<T> {
+    try {
+        return await fn();
+    } catch (error: any) {
+        // Only retry on network errors or transient failures, not permissions
+        const isTransient = error.code !== 'permission-denied' && error.code !== 'unauthenticated';
+
+        // Stop retrying if we are now confirmed offline
+        if (isTransient && attempts < FIREBASE_RETRY_CONFIG.maxAttempts && isValidNetwork()) {
+            const delay = FIREBASE_RETRY_CONFIG.baseDelay * Math.pow(2, attempts);
+            console.warn(`Vicente: Firestore operation failed, retrying in ${delay}ms... (Attempt ${attempts + 1})`, error.code);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return withRetry(fn, attempts + 1);
+        }
+        throw error;
+    }
+}
+
+function sanitizeData(data: any): any {
+    if (Array.isArray(data)) return data.map(sanitizeData);
+    if (data !== null && typeof data === 'object') {
+        return Object.fromEntries(
+            Object.entries(data)
+                .filter(([_, value]) => value !== undefined)
+                .map(([key, value]) => [key, sanitizeData(value)])
+        );
+    }
+    return data;
+}
+
+/**
+ * Standardized Error Handling & Remote Logging
+ */
+const logRemoteError = async (error: any, context: string) => {
+    const uid = getCurrentUserId();
+    if (!uid || isVirtualMode()) return;
+    try {
+        await addDoc(collection(db, COLLECTIONS.SYSTEM_LOGS), {
+            userId: uid,
+            context,
+            errorMessage: error.message || 'Unknown error',
+            errorCode: error.code || 'n/a',
+            timestamp: serverTimestamp(),
+            deviceTime: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            offline: !navigator.onLine,
+            schemaVersion: CURRENT_SCHEMA_VERSION
+        });
+    } catch (e) {
+        console.error("Failed to log remote error:", e);
+    }
+};
+
+const handleWriteError = async (error: any, context: string) => {
+    console.error(`Write Error [${context}]:`, error);
+    syncEvents.notify('error');
+    await logRemoteError(error, context);
+    throw error;
+};
+
+function generateId(prefix: string): string {
+    return `${prefix}${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
+}
+
+// Migration Logic
+function migrateDocument<T>(data: any, collectionName: string): T {
+    if (!data) return data;
+
+    // Check if migration is needed
+    const docVersion = data.schemaVersion || 0;
+
+    if (docVersion >= CURRENT_SCHEMA_VERSION) {
+        return data as T;
+    }
+
+    console.log(`Migrating document in ${collectionName} from v${docVersion} to v${CURRENT_SCHEMA_VERSION}`);
+
+    // --- MIGRATION STEPS DEFINITION ---
+    // This is where we will add case statements for future versions.
+    // Example:
+    // if (docVersion < 2 && collectionName === COLLECTIONS.STUDENTS) {
+    //    data = { ...data, newField: 'default' };
+    // }
+
+    // Always update the version in the returned object (in-memory only)
+    // The "Repair" happens when the user saves this object back to Firestore.
+    return { ...data, schemaVersion: CURRENT_SCHEMA_VERSION } as T;
+}
+
+const fetchDocument = async <T extends { id: string }>(collectionName: string, docId: string): Promise<T | null> => {
+    try {
+        const docRef = doc(db, collectionName, docId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return migrateDocument<T>({ id: docSnap.id, ...docSnap.data() }, collectionName);
+        }
+        return null;
+    } catch (error) {
+        console.error(`Error fetching document ${docId} from ${collectionName}:`, error);
+        return null;
+    }
+};
+
+const fetchCollection = async <T extends { id: string }>(collectionName: string, userIdOverride?: string): Promise<T[]> => {
+    const uid = userIdOverride || getCurrentUserId();
+    if (!uid) return [];
+
+    if (isVirtualMode()) {
+        const local = getLocal<T>(collectionName);
+        if (local.length > 0) return local;
+        // If empty, try template
+        return api.fetchFromTemplateIfEmpty<T>(collectionName);
+    }
+
+    try {
+        const q = query(collection(db, collectionName), where("userId", "==", uid));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => migrateDocument<T>({ id: doc.id, ...doc.data() }, collectionName));
+        setLocal(collectionName, data);
+        syncEvents.notify('synced');
+        return data;
+    } catch (error: any) {
+        if (error.code === 'permission-denied') {
+            console.error(`Vicente: Permisos insuficientes para ${collectionName}. Usando copia local.`);
+            syncEvents.notify('error');
+        }
+
+        // If in virtual mode AND firebase failed (or no auth), try template
+        if (isVirtualMode() && getLocal(collectionName).length === 0) {
+            return api.fetchFromTemplateIfEmpty<T>(collectionName);
+        }
+
+        return getLocal<T>(collectionName);
+    }
+};
+
+const subscribeToCollection = <T extends { id: string }>(collectionName: string, onData: (data: T[]) => void, userIdOverride?: string) => {
+    const uid = userIdOverride || getCurrentUserId();
+
+    if (!uid || isVirtualMode()) {
+        onData(getLocal<T>(collectionName));
+        if (isVirtualMode()) {
+            return subscribeToLocal(collectionName, onData);
+        }
+        return () => { };
+    }
+    // ...
+
+    const q = query(collection(db, collectionName), where("userId", "==", uid));
+    return onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => migrateDocument<T>({ id: doc.id, ...doc.data() }, collectionName));
+        setLocal(collectionName, data);
+        onData(data);
+        syncEvents.notify('synced');
+    }, (error) => {
+        if (error.code === 'permission-denied') syncEvents.notify('error');
+        console.error(`Error in ${collectionName} subscription:`, error);
+        // Fallback to local data on error
+        onData(getLocal<T>(collectionName));
+    });
+};
+
+const fetchBulkList = async <T>(listName: string, defaultData: T[]): Promise<T[]> => {
+    const uid = getCurrentUserId();
+    if (!uid) return defaultData;
+    if (isVirtualMode()) return getLocal<T>(listName);
+
+    try {
+        const docName = `${listName}_${uid}`;
+        const docSnap = await getDoc(doc(db, COLLECTIONS.LISTS, docName));
+        if (docSnap.exists()) {
+            const rawItems = (docSnap.data().items as T[]) || [];
+            const data = rawItems.map(item => migrateDocument<T>(item, listName));
+            setLocal(listName, data);
+            syncEvents.notify('synced');
+            return data;
+        }
+
+        // If doc doesn't exist and in virtual mode, try template
+        if (isVirtualMode() && getLocal(listName).length === 0) {
+            return api.fetchBulkListFromTemplateIfEmpty<T>(listName);
+        }
+
+        return getLocal<T>(listName);
+    } catch (error: any) {
+        if (error.code === 'permission-denied') syncEvents.notify('error');
+
+        if (isVirtualMode() && getLocal(listName).length === 0) {
+            return api.fetchBulkListFromTemplateIfEmpty<T>(listName);
+        }
+
+        return getLocal<T>(listName);
+    }
+};
+
+const subscribeToBulkList = <T>(listName: string, onData: (data: T[]) => void, userIdOverride?: string) => {
+    const uid = userIdOverride || getCurrentUserId();
+
+    if (!uid || isVirtualMode()) {
+        onData(getLocal<T>(listName));
+        if (isVirtualMode()) {
+            return subscribeToLocal(listName, onData);
+        }
+        return () => { };
+    }
+
+    const docName = `${listName}_${uid}`;
+
+    // In Virtual Mode, we rely on api.fetchBulkList to trigger any template population
+    if (isVirtualMode()) {
+        const localData = getLocal<T>(listName);
+        onData(localData);
+        return () => { };
+    }
+
+    return onSnapshot(doc(db, COLLECTIONS.LISTS, docName), (snapshot) => {
+        if (snapshot.exists()) {
+            const rawItems = (snapshot.data().items as T[]) || [];
+            const data = rawItems.map(item => migrateDocument<T>(item, listName));
+            setLocal(listName, data);
+            onData(data);
+            syncEvents.notify('synced');
+        } else {
+            onData([]);
+        }
+    }, (error) => {
+        if (error.code === 'permission-denied') syncEvents.notify('error');
+        console.error(`Error in ${listName} bulk subscription:`, error);
+        onData(getLocal<T>(listName));
+    });
+};
+
+const saveBulkList = async <T>(listName: string, items: T[]): Promise<void> => {
+    setLocal(listName, items);
+    const uid = getCurrentUserId();
+    if (isVirtualMode() || !uid) return;
+
+    try {
+        const docName = `${listName}_${uid}`;
+        // Inject schema version and updatedAt into each item for consistency
+        const updatedAt = new Date().toISOString();
+        const versionedItems = items.map(item => ({
+            ...item,
+            schemaVersion: CURRENT_SCHEMA_VERSION,
+            updatedAt
+        }));
+        syncEvents.notify('syncing');
+        await withRetry(() => setDoc(doc(db, COLLECTIONS.LISTS, docName), { items: sanitizeData(versionedItems), userId: uid, updatedAt }));
+        syncEvents.notify('synced');
+    } catch (error: any) {
+        await handleWriteError(error, `saveBulkList:${listName}`);
+    }
+};
+
+// --- Types ---
+export interface FeedbackData {
+    userId: string;
+    type: 'bug' | 'feature' | 'general';
+    message: string;
+    ssoMetadata: { name: string; email: string };
+    appMetadata: { version: string; userAgent: string; currentView: string };
+    screenshotUrl?: string | null;
+    status: 'new' | 'reviewed' | 'addressed';
+    createdAt?: any;
+}
+
+export const api = {
+    syncEvents,
+    USE_SUBCOLLECTION_GRADES,
+    async seedDemoData(): Promise<void> {
+        const classes = await this.getClasses();
+        if (classes.length === 0) {
+            // Populate from mockData
+            for (const cls of mockData.mockClasses) {
+                await this.addClass(cls);
+            }
+            for (const student of mockData.mockStudents) {
+                await this.addStudent(student);
+            }
+            for (const inst of mockData.mockInstruments) {
+                await this.addInstrument(inst);
+            }
+            for (const comp of mockData.mockCompetencies) {
+                await this.addCompetencies([comp]);
+            }
+            await this.setTeacherProfile(mockData.mockTeacherProfile);
+        }
+    },
+
+    async seedFirebaseDemoTemplate(): Promise<void> {
+        const templateUid = mockData.DEMO_TEMPLATE_UID;
+        console.log(`Seeding Firebase Demo Template: ${templateUid}`);
+
+        const batch = writeBatch(db);
+
+        // Simple helper to add to batch
+        const addToBatch = (colName: string, items: any[]) => {
+            items.forEach(item => {
+                const docRef = doc(db, colName, item.id);
+                batch.set(docRef, sanitizeData({ ...item, userId: templateUid, schemaVersion: CURRENT_SCHEMA_VERSION }));
+            });
+        };
+
+        addToBatch(COLLECTIONS.CLASSES, mockData.mockClasses);
+        addToBatch(COLLECTIONS.STUDENTS, mockData.mockStudents);
+        addToBatch(COLLECTIONS.INSTRUMENTS, mockData.mockInstruments);
+        addToBatch(COLLECTIONS.USER_COMPETENCIES, mockData.mockCompetencies);
+
+        // Special case for list-based data if any (none yet in mockData but just in case)
+
+        // Special case for Teacher Profile
+        batch.set(doc(db, COLLECTIONS.TEACHER_PROFILE, templateUid), sanitizeData({ ...mockData.mockTeacherProfile, userId: templateUid }));
+
+        try {
+            await batch.commit();
+        } catch (e) {
+            await logRemoteError(e, 'seedDemoData');
+        }
+        console.log("Firebase Demo Template seeded successfully.");
+    },
+
+    async fetchFromTemplateIfEmpty<T extends { id: string }>(collectionName: string): Promise<T[]> {
+        const local = getLocal<T>(collectionName);
+        if (local.length > 0) return local;
+
+        console.log(`Local storage for ${collectionName} is empty. Fetching from template...`);
+        try {
+            const q = query(collection(db, collectionName), where("userId", "==", mockData.DEMO_TEMPLATE_UID));
+            const snapshot = await getDocs(q);
+            const data = snapshot.docs.map(doc => migrateDocument<T>({ id: doc.id, ...doc.data() }, collectionName));
+            setLocal(collectionName, data);
+            return data;
+        } catch (error) {
+            console.error(`Error fetching ${collectionName} from template:`, error);
+            return [];
+        }
+    },
+
+    async fetchBulkListFromTemplateIfEmpty<T>(listName: string): Promise<T[]> {
+        const local = getLocal<T>(listName);
+        if (local.length > 0) return local;
+
+        console.log(`Local storage for bulk list ${listName} is empty. Fetching from template...`);
+        try {
+            const uid = mockData.DEMO_TEMPLATE_UID;
+            const docName = `${listName}_${uid}`;
+            const docSnap = await getDoc(doc(db, COLLECTIONS.LISTS, docName));
+            if (docSnap.exists()) {
+                const rawItems = (docSnap.data().items as T[]) || [];
+                const data = rawItems.map(item => migrateDocument<T>(item, listName));
+                setLocal(listName, data);
+                return data;
+            }
+            return [];
+        } catch (error) {
+            console.error(`Error fetching bulk list ${listName} from template:`, error);
+            return [];
+        }
+    },
+
+
+    async getCurriculumData(): Promise<CurriculumData> {
+        if (curriculumCache) return curriculumCache;
+        try {
+            const response = await fetch('/curriculum.json');
+            curriculumCache = await response.json();
+            return curriculumCache!;
+        } catch { return { levels: [] }; }
+    },
+
+    async getSystemLogs(limitCount: number = 50): Promise<any[]> {
+        const uid = getCurrentUserId();
+        if (!uid || isVirtualMode()) return [];
+        try {
+            // Re-import because of dependency cycle or scope
+            const { getDocs, query, collection, orderBy, limit, where } = await import("firebase/firestore");
+            const q = query(
+                collection(db, COLLECTIONS.SYSTEM_LOGS),
+                orderBy("timestamp", "desc"),
+                limit(limitCount)
+            );
+            const snapshot = await getDocs(q);
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error("Error fetching system logs:", error);
+            return [];
+        }
+    },
+
+    async clearSystemLogs(): Promise<void> {
+        const uid = getCurrentUserId();
+        if (!uid || isVirtualMode()) return;
+        try {
+            const { getDocs, query, collection, writeBatch, doc, deleteDoc } = await import("firebase/firestore");
+            const q = query(collection(db, COLLECTIONS.SYSTEM_LOGS));
+            const snapshot = await getDocs(q);
+            const batch = writeBatch(db);
+            snapshot.docs.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+        } catch (error) {
+            console.error("Error clearing system logs:", error);
+        }
+    },
+
+    async getClasses(): Promise<Class[]> { return fetchCollection<Class>(COLLECTIONS.CLASSES); },
+    async addClass(classData: Class | Omit<Class, 'id'>): Promise<Class[]> {
+        const uid = getCurrentUserId();
+        const newId = (classData as any).id || generateId('C');
+        const newClass: Class = { ...classData, id: newId } as Class;
+
+        const current = getLocal<Class>(COLLECTIONS.CLASSES);
+        setLocal(COLLECTIONS.CLASSES, [...current, newClass]);
+
+        if (!isVirtualMode() && uid) {
+            try {
+                syncEvents.notify('syncing');
+                const timestampedClass = { ...newClass, updatedAt: new Date().toISOString() };
+                if (isValidNetwork()) {
+                    await withRetry(() => setDoc(doc(db, COLLECTIONS.CLASSES, newId), sanitizeData({ ...timestampedClass, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })));
+                } else {
+                    setDoc(doc(db, COLLECTIONS.CLASSES, newId), sanitizeData({ ...timestampedClass, userId: uid, schemaVersion: CURRENT_SCHEMA_VERSION })).catch(e => logRemoteError(e, 'addClass:background'));
+                }
+                syncEvents.notify('synced');
+            } catch (e: any) {
+                await handleWriteError(e, `addClass:${newId}`);
+            }
+        }
+        return this.getClasses();
+    },
+    async updateClass(classId: string, updatedData: Omit<Class, 'id'>): Promise<Class[]> {
+        const current = getLocal<Class>(COLLECTIONS.CLASSES).map(c => c.id === classId ? { ...updatedData, id: classId } : c);
+        setLocal(COLLECTIONS.CLASSES, current);
+        if (!isVirtualMode()) {
+            try {
+                syncEvents.notify('syncing');
+                const updatedAt = new Date().toISOString();
+                await withRetry(() => updateDoc(doc(db, COLLECTIONS.CLASSES, classId), sanitizeData({ ...updatedData, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+                syncEvents.notify('synced');
+            } catch (e: any) {
+                await handleWriteError(e, `updateClass:${classId}`);
+            }
+        }
+        return this.getClasses();
+    },
+
+    async getDeletedClasses(): Promise<Class[]> { return fetchCollection<Class>(COLLECTIONS.DELETED_CLASSES); },
+
+    async moveClassToBin(classId: string): Promise<{ classes: Class[], deletedClasses: Class[] }> {
+        const uid = getCurrentUserId();
+        const currentClasses = getLocal<Class>(COLLECTIONS.CLASSES);
+        const classToMove = currentClasses.find(c => c.id === classId);
+
+        if (!classToMove) return { classes: currentClasses, deletedClasses: getLocal<Class>(COLLECTIONS.DELETED_CLASSES) };
+
+        const newClasses = currentClasses.filter(c => c.id !== classId);
+        const newDeleted = [...getLocal<Class>(COLLECTIONS.DELETED_CLASSES), classToMove];
+
+        setLocal(COLLECTIONS.CLASSES, newClasses);
+        setLocal(COLLECTIONS.DELETED_CLASSES, newDeleted);
+
+        if (!isVirtualMode() && uid) {
+            const batch = writeBatch(db);
+            const updatedAt = new Date().toISOString();
+            batch.delete(doc(db, COLLECTIONS.CLASSES, classId));
+            batch.set(doc(db, COLLECTIONS.DELETED_CLASSES, classId), sanitizeData({ ...classToMove, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION }));
+            try { await batch.commit(); } catch (e: any) {
+                await handleWriteError(e, `moveClassToBin:${classId}`);
+            }
+        }
+        return { classes: newClasses, deletedClasses: newDeleted };
+    },
+
+    async restoreClass(classId: string): Promise<{ classes: Class[], deletedClasses: Class[] }> {
+        const uid = getCurrentUserId();
+        const deletedClasses = getLocal<Class>(COLLECTIONS.DELETED_CLASSES);
+        const classToRestore = deletedClasses.find(c => c.id === classId);
+
+        if (!classToRestore) return { classes: getLocal<Class>(COLLECTIONS.CLASSES), deletedClasses };
+
+        const newDeleted = deletedClasses.filter(c => c.id !== classId);
+        const newClasses = [...getLocal<Class>(COLLECTIONS.CLASSES), classToRestore];
+
+        setLocal(COLLECTIONS.CLASSES, newClasses);
+        setLocal(COLLECTIONS.DELETED_CLASSES, newDeleted);
+
+        if (!isVirtualMode() && uid) {
+            const batch = writeBatch(db);
+            const updatedAt = new Date().toISOString();
+            batch.delete(doc(db, COLLECTIONS.DELETED_CLASSES, classId));
+            batch.set(doc(db, COLLECTIONS.CLASSES, classId), sanitizeData({ ...classToRestore, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION }));
+            try { await batch.commit(); } catch (e: any) {
+                await handleWriteError(e, `restoreClass:${classId}`);
+            }
+        }
+        return { classes: newClasses, deletedClasses: newDeleted };
+    },
+
+    async permanentlyDeleteClass(classId: string): Promise<{ deletedClasses: Class[] }> {
+        const newDeleted = getLocal<Class>(COLLECTIONS.DELETED_CLASSES).filter(c => c.id !== classId);
+        setLocal(COLLECTIONS.DELETED_CLASSES, newDeleted);
+
+        if (!isVirtualMode()) {
+            try { await deleteDoc(doc(db, COLLECTIONS.DELETED_CLASSES, classId)); } catch (e: any) {
+                await handleWriteError(e, `permanentlyDeleteClass:${classId}`);
+            }
+        }
+        return { deletedClasses: newDeleted };
+    },
+    async permanentlyDeleteClasses(classIds: string[]): Promise<{ deletedClasses: Class[] }> {
+        const currentDeleted = getLocal<Class>(COLLECTIONS.DELETED_CLASSES);
+        const newDeleted = currentDeleted.filter(c => !classIds.includes(c.id));
+        setLocal(COLLECTIONS.DELETED_CLASSES, newDeleted);
+
+        if (!isVirtualMode()) {
+            const batch = writeBatch(db);
+            classIds.forEach(id => {
+                batch.delete(doc(db, COLLECTIONS.DELETED_CLASSES, id));
+            });
+            try { await batch.commit(); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify('error');
+            }
+        }
+        return { deletedClasses: newDeleted };
+    },
+
+    async getStudents(): Promise<Student[]> { return fetchCollection<Student>(COLLECTIONS.STUDENTS); },
+    async addStudent(studentData: Omit<Student, 'id'>): Promise<Student[]> {
+        const uid = getCurrentUserId();
+        const current = getLocal<Student>(COLLECTIONS.STUDENTS);
+
+        // Automatic numbering logic
+        const classStudents = current.filter(s => s.classId === studentData.classId);
+        const nextOrderNumber = classStudents.length > 0
+            ? Math.max(...classStudents.map(s => s.orderNumber || 0)) + 1
+            : 1;
+
+        // Use random ID to prevent collisions in shared collection
+        const newId = generateId('ST');
+        const newStudent: Student = { ...studentData, id: newId, orderNumber: nextOrderNumber };
+
+        setLocal(COLLECTIONS.STUDENTS, [...current, newStudent]);
+
+        if (!isVirtualMode() && uid) {
+            try {
+                const updatedAt = new Date().toISOString();
+                const studentToSave = { ...newStudent, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION };
+                if (isValidNetwork()) {
+                    await setDoc(doc(db, COLLECTIONS.STUDENTS, newId), sanitizeData(studentToSave));
+                } else {
+                    setDoc(doc(db, COLLECTIONS.STUDENTS, newId), sanitizeData(studentToSave)).catch(e => logRemoteError(e, 'addStudent:background'));
+                }
+            } catch (error: any) {
+                await handleWriteError(error, `addStudent:${newId}`);
+            }
+        }
+        return this.getStudents();
+    },
+    async addStudents(studentsData: Omit<Student, 'id'>[]): Promise<Student[]> {
+        const uid = getCurrentUserId();
+        const current = getLocal<Student>(COLLECTIONS.STUDENTS);
+
+        const classId = studentsData[0]?.classId;
+        const classStudentsCount = current.filter(s => s.classId === classId).length;
+        let nextOrderNumber = classStudentsCount > 0
+            ? Math.max(...current.filter(s => s.classId === classId).map(s => s.orderNumber || 0)) + 1
+            : 1;
+
+        const newStudents = studentsData.map(s => {
+            const seqNumber = nextOrderNumber++;
+            return {
+                ...s,
+                id: generateId('ST'),
+                orderNumber: seqNumber
+            };
+        });
+
+        setLocal(COLLECTIONS.STUDENTS, [...current, ...newStudents]);
+
+        if (!isVirtualMode() && uid) {
+            const batch = writeBatch(db);
+            const updatedAt = new Date().toISOString();
+            newStudents.forEach(s => batch.set(doc(db, COLLECTIONS.STUDENTS, s.id), sanitizeData({ ...s, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+            try { await withRetry(() => batch.commit()); } catch (e: any) {
+                await handleWriteError(e, `addStudents:${newStudents.length}`);
+            }
+        }
+        return this.getStudents();
+    },
+    async setStudents(students: Student[]): Promise<void> {
+        setLocal(COLLECTIONS.STUDENTS, students);
+        const uid = getCurrentUserId();
+        if (isVirtualMode() || !uid) return;
+        const batch = writeBatch(db);
+        const updatedAt = new Date().toISOString();
+        students.forEach(s => batch.set(doc(db, COLLECTIONS.STUDENTS, s.id), sanitizeData({ ...s, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+        try { await withRetry(() => batch.commit()); } catch (e: any) {
+            await handleWriteError(e, `setStudents:${students.length}`);
+        }
+    },
+    async updateStudent(studentId: string, studentData: Partial<Student>): Promise<void> {
+        const current = getLocal<Student>(COLLECTIONS.STUDENTS).map(s => s.id === studentId ? { ...s, ...studentData } : s);
+        setLocal(COLLECTIONS.STUDENTS, current);
+        if (!isVirtualMode()) {
+            try {
+                const updatedAt = new Date().toISOString();
+                if (isValidNetwork()) {
+                    await withRetry(() => updateDoc(doc(db, COLLECTIONS.STUDENTS, studentId), sanitizeData({ ...studentData, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+                } else {
+                    updateDoc(doc(db, COLLECTIONS.STUDENTS, studentId), sanitizeData({ ...studentData, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })).catch(e => logRemoteError(e, 'updateStudent:background'));
+                }
+            } catch (e: any) {
+                await handleWriteError(e, `updateStudent:${studentId}`);
+            }
+        }
+    },
+
+    async getDeletedStudents(): Promise<Student[]> { return fetchCollection<Student>(COLLECTIONS.DELETED_STUDENTS); },
+    async moveStudentsToBin(studentsToMove: Student[]): Promise<{ students: Student[], deletedStudents: Student[] }> {
+        const uid = getCurrentUserId();
+        const studentIds = new Set(studentsToMove.map(s => s.id));
+        const newStudents = getLocal<Student>(COLLECTIONS.STUDENTS).filter(s => !studentIds.has(s.id));
+        const newDeleted = [...getLocal<Student>(COLLECTIONS.DELETED_STUDENTS), ...studentsToMove];
+        setLocal(COLLECTIONS.STUDENTS, newStudents);
+        setLocal(COLLECTIONS.DELETED_STUDENTS, newDeleted);
+
+        if (!isVirtualMode() && uid) {
+            const batch = writeBatch(db);
+            const updatedAt = new Date().toISOString();
+            studentsToMove.forEach(s => {
+                batch.delete(doc(db, COLLECTIONS.STUDENTS, s.id));
+                batch.set(doc(db, COLLECTIONS.DELETED_STUDENTS, s.id), sanitizeData({ ...s, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION }));
+            });
+            try { await batch.commit(); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify('error');
+            }
+        }
+        return { students: newStudents, deletedStudents: newDeleted };
+    },
+    async restoreStudent(studentToRestore: Student): Promise<{ students: Student[], deletedStudents: Student[] }> {
+        const uid = getCurrentUserId();
+        const newDeleted = getLocal<Student>(COLLECTIONS.DELETED_STUDENTS).filter(s => s.id !== studentToRestore.id);
+        const newStudents = [...getLocal<Student>(COLLECTIONS.STUDENTS), studentToRestore];
+        setLocal(COLLECTIONS.STUDENTS, newStudents);
+        setLocal(COLLECTIONS.DELETED_STUDENTS, newDeleted);
+
+        if (!isVirtualMode() && uid) {
+            const batch = writeBatch(db);
+            const updatedAt = new Date().toISOString();
+            batch.delete(doc(db, COLLECTIONS.DELETED_STUDENTS, studentToRestore.id));
+            batch.set(doc(db, COLLECTIONS.STUDENTS, studentToRestore.id), sanitizeData({ ...studentToRestore, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION }));
+            try { await batch.commit(); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify('error');
+            }
+        }
+        return { students: newStudents, deletedStudents: newDeleted };
+    },
+    async permanentlyDeleteStudent(studentId: string): Promise<{ deletedStudents: Student[], attendance: AttendanceRecord[], anecdotes: AnecdotalRecord[], grades: Grade[] }> {
+        const newDeleted = getLocal<Student>(COLLECTIONS.DELETED_STUDENTS).filter(s => s.id !== studentId);
+        setLocal(COLLECTIONS.DELETED_STUDENTS, newDeleted);
+
+        if (!isVirtualMode()) {
+            try { await deleteDoc(doc(db, COLLECTIONS.DELETED_STUDENTS, studentId)); } catch (e: any) {
+                await handleWriteError(e, `permanentlyDeleteStudent:${studentId}`);
+            }
+        }
+        return {
+            deletedStudents: newDeleted,
+            attendance: await this.getAttendance(),
+            anecdotes: await this.getAnecdotes(),
+            grades: await this.getGrades() // In a real app we would cleanup these too, but for now we just return them
+        };
+    },
+    async permanentlyDeleteStudents(studentIds: string[]): Promise<{ deletedStudents: Student[] }> {
+        const currentDeleted = getLocal<Student>(COLLECTIONS.DELETED_STUDENTS);
+        const newDeleted = currentDeleted.filter(s => !studentIds.includes(s.id));
+        setLocal(COLLECTIONS.DELETED_STUDENTS, newDeleted);
+
+        if (!isVirtualMode()) {
+            const batch = writeBatch(db);
+            studentIds.forEach(id => {
+                batch.delete(doc(db, COLLECTIONS.DELETED_STUDENTS, id));
+            });
+            try { await batch.commit(); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify('error');
+            }
+        }
+        return { deletedStudents: newDeleted };
+    },
+    async updateStudentsOrder(classId: string, orderedStudentIds: string[]): Promise<Student[]> {
+        const current = getLocal<Student>(COLLECTIONS.STUDENTS);
+
+        // Update local orderNumbers
+        const updated = current.map(s => {
+            if (s.classId === classId) {
+                const newIndex = orderedStudentIds.indexOf(s.id);
+                if (newIndex !== -1) {
+                    return { ...s, orderNumber: newIndex + 1 };
+                }
+            }
+            return s;
+        });
+
+        setLocal(COLLECTIONS.STUDENTS, updated);
+
+        if (!isVirtualMode()) {
+            const batch = writeBatch(db);
+            const updatedAt = new Date().toISOString();
+            updated.filter(s => s.classId === classId).forEach(s => {
+                const docRef = doc(db, COLLECTIONS.STUDENTS, s.id);
+                batch.update(docRef, { orderNumber: s.orderNumber, updatedAt });
+            });
+            try {
+                await batch.commit();
+            } catch (e: any) {
+                await handleWriteError(e, `updateStudentsOrder:${classId}`);
+            }
+        }
+
+        return this.getStudents();
+    },
+
+    async getAttendance(): Promise<AttendanceRecord[]> { return fetchBulkList('attendance', []); },
+    async setAttendance(attendance: AttendanceRecord[]): Promise<void> { return saveBulkList('attendance', attendance); },
+    async getDailyNotes(): Promise<DailyNote[]> { return fetchBulkList('daily_notes', []); },
+    async setDailyNotes(notes: DailyNote[]): Promise<void> { return saveBulkList('daily_notes', notes); },
+
+    async getAnecdotes(): Promise<AnecdotalRecord[]> { return fetchCollection<AnecdotalRecord>(COLLECTIONS.ANECDOTES); },
+    async addAnecdotes(newRecords: AnecdotalRecord[]): Promise<AnecdotalRecord[]> {
+        const uid = getCurrentUserId();
+        const current = getLocal<AnecdotalRecord>(COLLECTIONS.ANECDOTES);
+        const updated = [...current, ...newRecords];
+        setLocal(COLLECTIONS.ANECDOTES, updated);
+        if (!isVirtualMode() && uid) {
+            const batch = writeBatch(db);
+            const updatedAt = new Date().toISOString();
+            newRecords.forEach(r => batch.set(doc(db, COLLECTIONS.ANECDOTES, r.id), sanitizeData({ ...r, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+            try { await withRetry(() => batch.commit()); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify('error');
+            }
+        }
+        return updated;
+    },
+
+    async getFundamentalCompetencies(userIdOverride?: string): Promise<FundamentalCompetency[]> {
+        // For now returning mock data as template, but accepting the argument for consistent API
+        return mockFundamentalCompetencies;
+    },
+    async getCompetencies(): Promise<Competency[]> { return fetchCollection<Competency>(COLLECTIONS.USER_COMPETENCIES); },
+    async addCompetencies(competenciesData: Omit<Competency, 'id'>[]): Promise<Competency[]> {
+        const uid = getCurrentUserId();
+        const newComps = competenciesData.map(c => ({ ...c, id: generateId('COMP') }));
+        const current = getLocal<Competency>(COLLECTIONS.USER_COMPETENCIES);
+        const updated = [...current, ...newComps];
+        setLocal(COLLECTIONS.USER_COMPETENCIES, updated);
+        if (!isVirtualMode() && uid) {
+            const batch = writeBatch(db);
+            const updatedAt = new Date().toISOString();
+            newComps.forEach(c => batch.set(doc(db, COLLECTIONS.USER_COMPETENCIES, c.id), sanitizeData({ ...c, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+            try { await withRetry(() => batch.commit()); } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify('error');
+            }
+        }
+        return updated;
+    },
+    async updateCompetency(competencyId: string, updatedData: Omit<Competency, 'id'>): Promise<Competency[]> {
+        const current = getLocal<Competency>(COLLECTIONS.USER_COMPETENCIES).map(c => c.id === competencyId ? { ...updatedData, id: competencyId } : c);
+        setLocal(COLLECTIONS.USER_COMPETENCIES, current);
+        if (!isVirtualMode()) {
+            try {
+                const updatedAt = new Date().toISOString();
+                await withRetry(() => updateDoc(doc(db, COLLECTIONS.USER_COMPETENCIES, competencyId), sanitizeData({ ...updatedData, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+            } catch (e: any) {
+                if (e.code === 'permission-denied') syncEvents.notify('error');
+            }
+        }
+        return current;
+    },
+    async deleteCompetency(competencyId: string): Promise<Competency[]> {
+        const current = getLocal<Competency>(COLLECTIONS.USER_COMPETENCIES).filter(c => c.id !== competencyId);
+        setLocal(COLLECTIONS.USER_COMPETENCIES, current);
+        if (!isVirtualMode()) {
+            try { await withRetry(() => deleteDoc(doc(db, COLLECTIONS.USER_COMPETENCIES, competencyId))); } catch (e: any) {
+                await handleWriteError(e, `deleteUserCompetency:${competencyId}`);
+            }
+        }
+        return current;
+    },
+
+    async copyCompetency(competency: Competency, targetClassIds: string[]): Promise<void> {
+        const newCompetencies = targetClassIds.map(classId => ({
+            ...competency,
+            id: generateId('COMP'),
+            classId,
+            userId: getCurrentUserId() || competency.userId, // Ensure ownership transfers if needed (though usually same user)
+        }));
+
+        await this.addCompetencies(newCompetencies);
+    },
+
+    async getInstruments(): Promise<EvaluationInstrument[]> { return fetchCollection<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS); },
+    async addInstrument(instrumentData: Omit<EvaluationInstrument, 'id'>): Promise<EvaluationInstrument[]> {
+        const uid = getCurrentUserId();
+        const newId = generateId('INST');
+        const newInst: EvaluationInstrument = { ...instrumentData, id: newId };
+        const current = getLocal<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS);
+        const updated = [...current, newInst];
+        setLocal(COLLECTIONS.INSTRUMENTS, updated);
+        if (!isVirtualMode() && uid) {
+            try {
+                const updatedAt = new Date().toISOString();
+                await withRetry(() => setDoc(doc(db, COLLECTIONS.INSTRUMENTS, newId), sanitizeData({ ...newInst, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+            } catch (e: any) {
+                await handleWriteError(e, `addInstrument:${newId}`);
+            }
+        }
+        return updated;
+    },
+    async updateInstrument(instrumentId: string, updatedData: Omit<EvaluationInstrument, 'id'>): Promise<EvaluationInstrument[]> {
+        const current = getLocal<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS).map(i => i.id === instrumentId ? { ...updatedData, id: instrumentId } : i);
+        setLocal(COLLECTIONS.INSTRUMENTS, current);
+        if (!isVirtualMode()) {
+            try {
+                const updatedAt = new Date().toISOString();
+                await withRetry(() => updateDoc(doc(db, COLLECTIONS.INSTRUMENTS, instrumentId), sanitizeData({ ...updatedData, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+            } catch (e: any) {
+                await handleWriteError(e, `updateInstrument:${instrumentId}`);
+            }
+        }
+        return current;
+    },
+
+    async getGrades(): Promise<Grade[]> { return fetchBulkList('grades', []); },
+    async setGrades(grades: Grade[]): Promise<void> {
+        if (USE_SUBCOLLECTION_GRADES) {
+            return this.setGradesSubcollection(grades);
+        }
+        return saveBulkList('grades', grades);
+    },
+
+    /**
+     * NEW: Save grades using subcollection model
+     * Each grade is a separate document in instruments/{id}/grades/{studentId}
+     */
+    async setGradesSubcollection(grades: Grade[]): Promise<void> {
+        // ALWAYS update local first for Optimistic UI & Offline support
+        setLocal('grades', grades);
+
+        if (isVirtualMode()) return;
+
+        const uid = getCurrentUserId();
+        if (!uid) return;
+
+        try {
+            syncEvents.notify('syncing');
+            const batch = writeBatch(db);
+            const timestamp = serverTimestamp();
+
+            // Group grades by instrument for efficient batching
+            const gradesByInstrument = grades.reduce((acc, grade) => {
+                if (!acc[grade.instrumentId]) acc[grade.instrumentId] = [];
+                acc[grade.instrumentId].push(grade);
+                return acc;
+            }, {} as Record<string, Grade[]>);
+
+            Object.entries(gradesByInstrument).forEach(([instrumentId, instrumentGrades]) => {
+                instrumentGrades.forEach(grade => {
+                    const gradeDocRef = doc(db, getGradeDocPath(instrumentId, grade.studentId));
+                    const gradeData: GradeDocument = {
+                        userId: uid,
+                        score: grade.score,
+                        criteriaScores: grade.criteriaScores || {},
+                        updatedAt: timestamp
+                    };
+                    batch.set(gradeDocRef, gradeData, { merge: true });
+                });
+            });
+
+            await withRetry(() => batch.commit());
+            syncEvents.notify('synced');
+        } catch (error: any) {
+            await handleWriteError(error, 'setGradesSubcollection');
+            throw error;
+        }
+    },
+
+    /**
+     * NEW: Load all grades for user (loads from all instruments)
+     * Used mainly for migration/export. For UI, use onInstrumentGradesChange.
+     */
+    async getAllGradesSubcollection(userId: string): Promise<Grade[]> {
+        if (isVirtualMode()) return getLocal('grades') || [];
+
+        try {
+            const instruments = await this.getInstruments();
+            const allGrades: Grade[] = [];
+
+            for (const instrument of instruments) {
+                const gradesRef = collection(db, getGradesCollectionPath(instrument.id));
+                const q = query(gradesRef, where('userId', '==', userId));
+                const snapshot = await getDocs(q);
+
+                snapshot.docs.forEach(docSnap => {
+                    const data = docSnap.data() as GradeDocument;
+                    allGrades.push({
+                        id: docSnap.id,
+                        studentId: docSnap.id,
+                        instrumentId: instrument.id,
+                        score: data.score,
+                        criteriaScores: data.criteriaScores,
+                        userId: data.userId,
+                        updatedAt: data.updatedAt,
+                        schemaVersion: CURRENT_SCHEMA_VERSION
+                    });
+                });
+            }
+            return allGrades;
+        } catch (error) {
+            console.error('Error loading all grades from subcollections:', error);
+            return [];
+        }
+    },
+    async saveGrade(grade: Grade): Promise<void> {
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        const grades = getLocal<Grade>('grades'); // Using string literal 'grades' as per existing saveBulkList usage
+
+        const existingIndex = grades.findIndex(g => g.studentId === grade.studentId && g.instrumentId === grade.instrumentId);
+
+        // Optimistic UI Update
+        if (existingIndex >= 0) {
+            grades[existingIndex] = { ...grades[existingIndex], ...grade };
+        } else {
+            grades.push({ ...grade, id: generateId('G'), userId: uid });
+        }
+        setLocal('grades', grades);
+
+        if (!isVirtualMode()) {
+            try {
+                const batch = writeBatch(db);
+                const timestamp = serverTimestamp();
+                const updatedAt = new Date().toISOString();
+
+                // Path: instruments/{instId}/grades/{studentId}
+                const gradeDocRef = doc(db, getGradeDocPath(grade.instrumentId, grade.studentId));
+
+                // 1. Save main Grade document
+                const gradeData: GradeDocument = {
+                    userId: uid,
+                    score: grade.score,
+                    criteriaScores: grade.criteriaScores || {},
+                    updatedAt: timestamp
+                };
+                batch.set(gradeDocRef, gradeData, { merge: true });
+
+                // 2. History Sidecar (Append-Only)
+                // Path: instruments/{instId}/grades/{studentId}/history/{autoId}
+                const historyRef = doc(collection(gradeDocRef, "history"));
+                batch.set(historyRef, {
+                    gradeId: grade.studentId,
+                    score: grade.score,
+                    timestamp: timestamp,
+                    userId: uid,
+                    action: 'UPDATE',
+                    deviceTime: updatedAt
+                });
+
+                syncEvents.notify('syncing');
+                await withRetry(() => batch.commit());
+                syncEvents.notify('synced');
+            } catch (error: any) {
+                await handleWriteError(error, `saveGrade:${grade.studentId}:${grade.instrumentId}`);
+            }
+        }
+    },
+    async getRecoveryGrades(): Promise<RecoveryGrade[]> { return fetchBulkList('recovery_grades', []); },
+    async saveRecoveryGrade(newGrade: Omit<RecoveryGrade, 'id'>): Promise<RecoveryGrade[]> {
+        const current = getLocal<RecoveryGrade>('recovery_grades');
+        const idx = current.findIndex(rg => rg.studentId === newGrade.studentId && rg.period === newGrade.period && rg.competencyGroup === newGrade.competencyGroup);
+        let updated;
+        if (idx > -1) {
+            updated = [...current];
+            updated[idx] = { ...newGrade, id: current[idx].id };
+        } else {
+            updated = [...current, { ...newGrade, id: generateId('RG') }];
+        }
+        await this.setRecoveryGrades(updated);
+        return updated;
+    },
+    async setRecoveryGrades(grades: RecoveryGrade[]): Promise<void> { return saveBulkList('recovery_grades', grades); },
+
+    async logGradesHistory(updates: { studentId: string; instrumentId: string; score: number | null; criteriaScores?: any }[]): Promise<void> {
+        if (isVirtualMode()) return;
+        const uid = getCurrentUserId();
+        if (!uid) return;
+
+        try {
+            const batch = writeBatch(db);
+            const timestamp = serverTimestamp();
+            const deviceTime = new Date().toISOString();
+
+            updates.forEach(update => {
+                // Shared history at instrument level
+                const historyCollectionRef = collection(db, `${COLLECTIONS.INSTRUMENTS}/${update.instrumentId}/history`);
+                const historyRef = doc(historyCollectionRef);
+                batch.set(historyRef, {
+                    studentId: update.studentId,
+                    score: update.score,
+                    criteriaScores: update.criteriaScores,
+                    timestamp: timestamp,
+                    userId: uid,
+                    action: 'UPDATE',
+                    deviceTime: deviceTime
+                });
+            });
+
+            await batch.commit();
+            console.log("Batch history write committed successfully");
+        } catch (e) {
+            await logRemoteError(e, 'logGradesHistory');
+            // Non-blocking error
+        }
+    },
+
+    async getTeacherProfile(): Promise<TeacherProfileData> {
+        const uid = getCurrentUserId();
+        if (isVirtualMode()) return JSON.parse(localStorage.getItem('regis_profile') || JSON.stringify(defaultTeacherProfile));
+        try {
+            const docSnap = await getDoc(doc(db, COLLECTIONS.TEACHER_PROFILE, uid!));
+            if (docSnap.exists()) return docSnap.data() as TeacherProfileData;
+
+            // For new users, return a profile pre-populated with auth info
+            return {
+                ...defaultTeacherProfile,
+                name: auth.currentUser?.displayName || defaultTeacherProfile.name,
+                email: auth.currentUser?.email || defaultTeacherProfile.email,
+                profilePictureUrl: auth.currentUser?.photoURL || defaultTeacherProfile.profilePictureUrl
+            };
+        } catch { return defaultTeacherProfile; }
+    },
+    async setTeacherProfile(profile: TeacherProfileData): Promise<void> {
+        localStorage.setItem('regis_profile', JSON.stringify(profile));
+        notifyLocalChange('teacher_profile', profile);
+        const uid = getCurrentUserId();
+        if (isVirtualMode() || !uid) return;
+        const updatedAt = new Date().toISOString();
+        try { await withRetry(() => setDoc(doc(db, COLLECTIONS.TEACHER_PROFILE, uid), sanitizeData({ ...profile, userId: uid, updatedAt }))); } catch (e: any) {
+            await handleWriteError(e, 'setTeacherProfile');
+        }
+    },
+
+    async getJournalEntries(): Promise<JournalEntry[]> { return fetchCollection<JournalEntry>(COLLECTIONS.JOURNAL); },
+    async addJournalEntry(content: string): Promise<JournalEntry[]> {
+        const uid = getCurrentUserId();
+        const newId = generateId('J');
+        const newEntry: JournalEntry = { id: newId, date: new Date().toISOString(), content };
+        const current = getLocal<JournalEntry>(COLLECTIONS.JOURNAL);
+        const updated = [...current, newEntry];
+        setLocal(COLLECTIONS.JOURNAL, updated);
+        if (!isVirtualMode() && uid) {
+            try {
+                const updatedAt = new Date().toISOString();
+                await withRetry(() => setDoc(doc(db, COLLECTIONS.JOURNAL, newId), sanitizeData({ ...newEntry, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+            } catch (e: any) {
+                await handleWriteError(e, `addJournalEntry:${newId}`);
+            }
+        }
+        return updated;
+    },
+
+    async getResources(): Promise<Resource[]> { return fetchCollection<Resource>(COLLECTIONS.RESOURCES); },
+    async addResource(title: string, url: string, description: string): Promise<Resource[]> {
+        const uid = getCurrentUserId();
+        const newId = generateId('R');
+        const newRes: Resource = { id: newId, title, url, description };
+        const current = getLocal<Resource>(COLLECTIONS.RESOURCES);
+        const updated = [...current, newRes];
+        setLocal(COLLECTIONS.RESOURCES, updated);
+        if (!isVirtualMode() && uid) {
+            try {
+                const updatedAt = new Date().toISOString();
+                await withRetry(() => setDoc(doc(db, COLLECTIONS.RESOURCES, newId), sanitizeData({ ...newRes, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION })));
+            } catch (e: any) {
+                await handleWriteError(e, `addResource:${newId}`);
+            }
+        }
+        return updated;
+    },
+    async saveAttendance(record: AttendanceRecord): Promise<void> {
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        // Local logic omitted for brevity as it mirrors others
+        const attendance = getLocal<AttendanceRecord>('attendance'); // Note: Collection name inconsistency in local storage logic vs COLLECTIONS constant usage elsewhere. Assuming 'attendance' is key here or inconsistent.
+        // Actually, let's fix the local storage key to be consistent if possible, but sticking to existing logic for now.
+        // The original code used 'attendance' string literal for local storage getLocal.
+
+        const existingIndex = attendance.findIndex(a => a.studentId === record.studentId && a.date === record.date);
+        if (existingIndex >= 0) {
+            attendance[existingIndex] = record;
+        } else {
+            attendance.push(record);
+        }
+        setLocal('attendance', attendance);
+
+        if (!isVirtualMode()) {
+            const updatedAt = new Date().toISOString();
+            const dataToSave = { ...record, userId: uid, updatedAt, schemaVersion: CURRENT_SCHEMA_VERSION };
+            const docId = `${record.studentId}_${record.date}`;
+            try {
+                await withRetry(() => setDoc(doc(db, COLLECTIONS.ATTENDANCE, docId), sanitizeData(dataToSave)));
+            } catch (e: any) {
+                await handleWriteError(e, `saveAttendance:${docId}`);
+            }
+        }
+    },
+
+    async getCustomEvents(): Promise<CustomEvent[]> { return fetchCollection<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS); },
+    async addCustomEvent(eventData: Omit<CustomEvent, 'id'>): Promise<CustomEvent[]> {
+        const uid = getCurrentUserId();
+        const newId = generateId('E');
+        const newEvent: CustomEvent = { ...eventData, id: newId };
+        const current = getLocal<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS);
+        const updated = [...current, newEvent];
+        setLocal(COLLECTIONS.CUSTOM_EVENTS, updated);
+        if (!isVirtualMode() && uid) {
+            try {
+                const updatedAt = new Date().toISOString();
+                await withRetry(() => setDoc(doc(db, COLLECTIONS.CUSTOM_EVENTS, newId), sanitizeData({ ...newEvent, userId: uid, updatedAt })));
+            } catch (e: any) {
+                await handleWriteError(e, `addCustomEvent:${newId}`);
+            }
+        }
+        return updated;
+    },
+    async updateCustomEvent(eventId: string, updatedData: Omit<CustomEvent, 'id'>): Promise<CustomEvent[]> {
+        const current = getLocal<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS).map(e => e.id === eventId ? { ...updatedData, id: eventId } : e);
+        setLocal(COLLECTIONS.CUSTOM_EVENTS, current);
+        if (!isVirtualMode()) {
+            try {
+                const updatedAt = new Date().toISOString();
+                await withRetry(() => updateDoc(doc(db, COLLECTIONS.CUSTOM_EVENTS, eventId), sanitizeData({ ...updatedData, updatedAt })));
+            } catch (e: any) {
+                await handleWriteError(e, `updateCustomEvent:${eventId}`);
+            }
+        }
+        return current;
+    },
+    async deleteCustomEvent(eventId: string): Promise<CustomEvent[]> {
+        const current = getLocal<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS).filter(e => e.id !== eventId);
+        setLocal(COLLECTIONS.CUSTOM_EVENTS, current);
+        if (!isVirtualMode()) {
+            try { await deleteDoc(doc(db, COLLECTIONS.CUSTOM_EVENTS, eventId)); } catch (e: any) {
+                await handleWriteError(e, `deleteCustomEvent:${eventId}`);
+            }
+        }
+        return current;
+    },
+
+    async getLessonPlans(): Promise<LessonPlan[]> { return fetchCollection<LessonPlan>(COLLECTIONS.LESSON_PLANS); },
+    async addLessonPlan(planData: Omit<LessonPlan, 'id'>): Promise<LessonPlan[]> {
+        const uid = getCurrentUserId();
+        const newId = generateId('LP');
+        const newPlan: LessonPlan = { ...planData, id: newId };
+        const current = getLocal<LessonPlan>(COLLECTIONS.LESSON_PLANS);
+        const updated = [...current, newPlan];
+        setLocal(COLLECTIONS.LESSON_PLANS, updated);
+        if (!isVirtualMode() && uid) {
+            try {
+                const updatedAt = new Date().toISOString();
+                await withRetry(() => setDoc(doc(db, COLLECTIONS.LESSON_PLANS, newId), sanitizeData({ ...newPlan, userId: uid, updatedAt })));
+            } catch (e: any) {
+                await handleWriteError(e, `addLessonPlan:${newId}`);
+            }
+        }
+        return updated;
+    },
+    async updateLessonPlan(planId: string, updatedData: Omit<LessonPlan, 'id'>): Promise<LessonPlan[]> {
+        const current = getLocal<LessonPlan>(COLLECTIONS.LESSON_PLANS).map(p => p.id === planId ? { ...updatedData, id: planId } : p);
+        setLocal(COLLECTIONS.LESSON_PLANS, current);
+        if (!isVirtualMode()) {
+            try {
+                const updatedAt = new Date().toISOString();
+                await withRetry(() => updateDoc(doc(db, COLLECTIONS.LESSON_PLANS, planId), sanitizeData({ ...updatedData, updatedAt })));
+            } catch (e: any) {
+                await handleWriteError(e, `updateLessonPlan:${planId}`);
+            }
+        }
+        return current;
+    },
+    async deleteLessonPlan(planId: string): Promise<LessonPlan[]> {
+        const current = getLocal<LessonPlan>(COLLECTIONS.LESSON_PLANS).filter(p => p.id !== planId);
+        setLocal(COLLECTIONS.LESSON_PLANS, current);
+        if (!isVirtualMode()) {
+            try { await deleteDoc(doc(db, COLLECTIONS.LESSON_PLANS, planId)); } catch (e: any) {
+                await handleWriteError(e, `deleteLessonPlan:${planId}`);
+            }
+        }
+        return current;
+    },
+
+    async getIsDarkMode(): Promise<boolean> { return JSON.parse(localStorage.getItem('teacherkit-isDarkMode') || 'false'); },
+    async setIsDarkMode(isDark: boolean): Promise<void> { localStorage.setItem('teacherkit-isDarkMode', JSON.stringify(isDark)); },
+    async getIsSidebarCollapsed(): Promise<boolean> { return JSON.parse(localStorage.getItem('teacherkit-isSidebarCollapsed') || 'false'); },
+    async setIsSidebarCollapsed(isCollapsed: boolean): Promise<void> { localStorage.setItem('teacherkit-isSidebarCollapsed', JSON.stringify(isCollapsed)); },
+    async getFontSize(): Promise<FontSize> { return (localStorage.getItem('teacherkit-fontSize') as FontSize) || 'base'; },
+    async setFontSize(size: FontSize): Promise<void> { localStorage.setItem('teacherkit-fontSize', size); },
+    async getLastSelectedClassId(): Promise<string | null> { return localStorage.getItem('teacherkit-lastSelectedClassId'); },
+    async setLastSelectedClassId(classId: string): Promise<void> { localStorage.setItem('teacherkit-lastSelectedClassId', classId); },
+    async getAIFeatures(userIdOverride?: string): Promise<AIFeatures> {
+        if (!isVirtualMode()) {
+            try {
+                const docSnap = await getDoc(doc(db, COLLECTIONS.APP_CONFIG, 'global_ai_features'));
+                if (docSnap.exists()) {
+                    return docSnap.data().features as AIFeatures;
+                }
+            } catch (error) {
+                console.error("Error fetching AI features:", error);
+            }
+        }
+        return JSON.parse(localStorage.getItem('teacherkit-aiFeatures') || JSON.stringify({
+            summaryGeneration: false,
+            criteriaGeneration: false,
+            lessonPlanning: false,
+            studentExtraction: false,
+            audioAnalysis: false,
+            vicenteAssistant: false,
+        }));
+    },
+    async setAIFeatures(features: AIFeatures): Promise<void> {
+        localStorage.setItem('teacherkit-aiFeatures', JSON.stringify(features));
+        if (!isVirtualMode()) {
+            try {
+                await setDoc(doc(db, COLLECTIONS.APP_CONFIG, 'global_ai_features'), { features: sanitizeData(features) });
+            } catch (error) {
+                await logRemoteError(error, 'setAIFeatures');
+            }
+        }
+    },
+    onAIFeaturesChange(callback: (features: AIFeatures) => void, userIdOverride?: string) {
+        if (isVirtualMode() && !userIdOverride) return () => { };
+        return onSnapshot(doc(db, COLLECTIONS.APP_CONFIG, 'global_ai_features'), (snapshot) => {
+            if (snapshot.exists()) {
+                callback(snapshot.data().features as AIFeatures);
+            }
+        });
+    },
+
+    // Subscriptions
+    onClassesChange(callback: (classes: Class[]) => void, uid?: string) { return subscribeToCollection<Class>(COLLECTIONS.CLASSES, callback, uid); },
+    onStudentsChange(callback: (students: Student[]) => void, uid?: string) { return subscribeToCollection<Student>(COLLECTIONS.STUDENTS, callback, uid); },
+    onDeletedStudentsChange(callback: (students: Student[]) => void, uid?: string) { return subscribeToCollection<Student>(COLLECTIONS.DELETED_STUDENTS, callback, uid); },
+    onDeletedClassesChange(callback: (classes: Class[]) => void, uid?: string) { return subscribeToCollection<Class>(COLLECTIONS.DELETED_CLASSES, callback, uid); },
+    onAttendanceChange(callback: (attendance: AttendanceRecord[]) => void, uid?: string) { return subscribeToBulkList<AttendanceRecord>('attendance', callback, uid); },
+    onDailyNotesChange(callback: (notes: DailyNote[]) => void, uid?: string) { return subscribeToBulkList<DailyNote>('daily_notes', callback, uid); },
+    onAnecdotesChange(callback: (anecdotes: AnecdotalRecord[]) => void, uid?: string) { return subscribeToCollection<AnecdotalRecord>(COLLECTIONS.ANECDOTES, callback, uid); },
+    onInstrumentsChange(callback: (instruments: EvaluationInstrument[]) => void, uid?: string) { return subscribeToCollection<EvaluationInstrument>(COLLECTIONS.INSTRUMENTS, callback, uid); },
+    onGradesChange(callback: (grades: Grade[]) => void, uid?: string) { return subscribeToBulkList<Grade>('grades', callback, uid); },
+    onInstrumentGradesChange(instrumentId: string, userId: string, callback: (grades: Grade[]) => void): (() => void) {
+        if (isVirtualMode()) {
+            const allGrades = getLocal<Grade>('grades') || [];
+            const instrumentGrades = allGrades.filter(g => g.instrumentId === instrumentId);
+            callback(instrumentGrades);
+            return () => { };
+        }
+
+        if (!userId) {
+            console.error(`onInstrumentGradesChange: Missing userId for instrument ${instrumentId}`);
+            callback([]);
+            return () => { };
+        }
+
+        const gradesCollectionRef = collection(db, getGradesCollectionPath(instrumentId));
+        const q = query(gradesCollectionRef, where('userId', '==', userId));
+
+        return onSnapshot(q, (snapshot) => {
+            const grades: Grade[] = snapshot.docs.map(docSnap => {
+                const data = docSnap.data() as GradeDocument;
+                return {
+                    id: docSnap.id,
+                    studentId: docSnap.id,
+                    instrumentId: instrumentId,
+                    score: data.score,
+                    criteriaScores: data.criteriaScores,
+                    userId: data.userId,
+                    updatedAt: data.updatedAt,
+                    schemaVersion: CURRENT_SCHEMA_VERSION
+                };
+            });
+            callback(grades);
+            callback(grades);
+        }, (error) => {
+            if (error.code === 'permission-denied') {
+                // Expected on logout, ignore
+                return;
+            }
+            console.error(`Error listening to instrument ${instrumentId} grades:`, error);
+            callback([]);
+        });
+    },
+    onRecoveryGradesChange(callback: (grades: RecoveryGrade[]) => void, uid?: string) { return subscribeToBulkList<RecoveryGrade>('recovery_grades', callback, uid); },
+    onCompetenciesChange(callback: (competencies: Competency[]) => void, uid?: string) { return subscribeToCollection<Competency>(COLLECTIONS.USER_COMPETENCIES, callback, uid); },
+    onJournalChange(callback: (entries: JournalEntry[]) => void, uid?: string) { return subscribeToCollection<JournalEntry>(COLLECTIONS.JOURNAL, callback, uid); },
+    onResourcesChange(callback: (resources: Resource[]) => void, uid?: string) { return subscribeToCollection<Resource>(COLLECTIONS.RESOURCES, callback, uid); },
+    onEventsChange(callback: (events: CustomEvent[]) => void, uid?: string) { return subscribeToCollection<CustomEvent>(COLLECTIONS.CUSTOM_EVENTS, callback, uid); },
+    onLessonPlansChange(callback: (plans: LessonPlan[]) => void, uid?: string) { return subscribeToCollection<LessonPlan>(COLLECTIONS.LESSON_PLANS, callback, uid); },
+    onTeacherProfileChange(callback: (profile: TeacherProfileData) => void, userIdOverride?: string) {
+        const uid = userIdOverride || getCurrentUserId();
+        if (!uid) {
+            // If truly no UID, at least provide default to avoid blank screen in some states
+            callback(defaultTeacherProfile);
+            return () => { };
+        }
+
+        if (isVirtualMode()) {
+            this.getTeacherProfile().then(callback);
+            return subscribeToLocal('teacher_profile', callback);
+        }
+
+        const handleSnapshotError = (error: any) => {
+            // On permission error or any other, provide fallback
+            callback({
+                ...defaultTeacherProfile,
+                name: auth.currentUser?.displayName || (userIdOverride ? 'Usuario' : defaultTeacherProfile.name),
+                email: auth.currentUser?.email || (userIdOverride ? '' : defaultTeacherProfile.email),
+                profilePictureUrl: auth.currentUser?.photoURL || defaultTeacherProfile.profilePictureUrl,
+                _isFallback: true
+            } as any);
+        };
+
+        return onSnapshot(doc(db, COLLECTIONS.TEACHER_PROFILE, uid), (snapshot) => {
+            if (snapshot.exists()) {
+                callback(snapshot.data() as TeacherProfileData);
+            } else {
+                // Return default profile for new users to prevent blank screen
+                callback({
+                    ...defaultTeacherProfile,
+                    name: auth.currentUser?.displayName || (userIdOverride ? 'Usuario' : defaultTeacherProfile.name),
+                    email: auth.currentUser?.email || (userIdOverride ? '' : defaultTeacherProfile.email),
+                    profilePictureUrl: auth.currentUser?.photoURL || defaultTeacherProfile.profilePictureUrl,
+                    _isFallback: true
+                } as any);
+            }
+        }, handleSnapshotError);
+    },
+
+    async getLatestVersion(): Promise<string> {
+        if (isVirtualMode()) return 'LOCAL';
+        try {
+            const docSnap = await getDoc(doc(db, COLLECTIONS.APP_CONFIG, 'global_config'));
+            if (docSnap.exists()) {
+                return docSnap.data().version || '';
+            }
+        } catch (error) {
+            console.error("Error fetching latest version:", error);
+        }
+        return '';
+    },
+
+    // Connection Monitoring
+    isValidNetwork,
+    checkConnection,
+    monitorConnection,
+    subscribeToConnectionStatus,
+
+    // Subscription Management (Premium Account System)
+    async getSubscription(userIdOverride?: string): Promise<UserSubscription> {
+        const uid = userIdOverride || getCurrentUserId();
+        const defaultFree: UserSubscription = {
+            tier: 'free',
+            status: 'active',
+            expiresAt: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            source: 'manual'
+        };
+
+        if (!uid || isVirtualMode()) return defaultFree;
+
+        try {
+            const docSnap = await getDoc(doc(db, COLLECTIONS.SUBSCRIPTIONS, uid));
+            if (docSnap.exists()) {
+                return docSnap.data() as UserSubscription;
+            }
+        } catch (error) {
+            console.error("Error fetching subscription:", error);
+        }
+
+        // Cache in localStorage for offline access
+        const cached = localStorage.getItem(`regis-subscription-${uid}`);
+        if (cached) {
+            try {
+                return JSON.parse(cached) as UserSubscription;
+            } catch { }
+        }
+
+        return defaultFree;
+    },
+
+    onSubscriptionChange(callback: (subscription: UserSubscription) => void, userIdOverride?: string) {
+        const uid = userIdOverride || getCurrentUserId();
+        if (!uid || isVirtualMode()) {
+            // Return default for demo mode
+            callback({
+                tier: 'free',
+                status: 'active',
+                expiresAt: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                source: 'manual'
+            });
+            return () => { };
+        }
+
+        return onSnapshot(doc(db, COLLECTIONS.SUBSCRIPTIONS, uid), (snapshot) => {
+            if (snapshot.exists()) {
+                const sub = snapshot.data() as UserSubscription;
+                // Cache for offline
+                localStorage.setItem(`regis-subscription-${uid}`, JSON.stringify(sub));
+                callback(sub);
+            } else {
+                // No subscription doc = free tier
+                callback({
+                    tier: 'free',
+                    status: 'active',
+                    expiresAt: null,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    source: 'manual'
+                });
+            }
+        });
+    },
+
+    /**
+     * Track student extraction usage for free tier limits
+     * Increments count and resets monthly if needed
+     */
+    async trackStudentExtraction(userIdOverride?: string): Promise<void> {
+        const uid = userIdOverride || getCurrentUserId();
+        if (!uid || isVirtualMode()) return;
+
+        try {
+            const subRef = doc(db, COLLECTIONS.SUBSCRIPTIONS, uid);
+            const subSnap = await getDoc(subRef);
+
+            const now = new Date();
+            const currentMonth = now.toISOString();
+
+            if (!subSnap.exists()) {
+                // Create initial subscription doc with usage
+                await setDoc(subRef, {
+                    tier: 'free',
+                    status: 'active',
+                    expiresAt: null,
+                    createdAt: currentMonth,
+                    updatedAt: currentMonth,
+                    source: 'manual',
+                    usage: {
+                        studentExtractions: {
+                            count: 1,
+                            lastReset: currentMonth
+                        }
+                    }
+                });
+                return;
+            }
+
+            const subscription = subSnap.data() as UserSubscription;
+            const usage = subscription.usage?.studentExtractions;
+
+            if (!usage) {
+                // First extraction
+                await setDoc(subRef, {
+                    ...subscription,
+                    updatedAt: currentMonth,
+                    usage: {
+                        studentExtractions: {
+                            count: 1,
+                            lastReset: currentMonth
+                        }
+                    }
+                }, { merge: true });
+                return;
+            }
+
+            // Check if we need to reset (new month)
+            const lastReset = new Date(usage.lastReset);
+            const needsReset =
+                now.getMonth() !== lastReset.getMonth() ||
+                now.getFullYear() !== lastReset.getFullYear();
+
+            if (needsReset) {
+                // Reset counter for new month
+                await setDoc(subRef, {
+                    ...subscription,
+                    updatedAt: currentMonth,
+                    usage: {
+                        studentExtractions: {
+                            count: 1,
+                            lastReset: currentMonth
+                        }
+                    }
+                }, { merge: true });
+            } else {
+                // Increment counter
+                await setDoc(subRef, {
+                    ...subscription,
+                    updatedAt: currentMonth,
+                    usage: {
+                        studentExtractions: {
+                            count: usage.count + 1,
+                            lastReset: usage.lastReset
+                        }
+                    }
+                }, { merge: true });
+            }
+        } catch (error) {
+            await logRemoteError(error, 'trackStudentExtraction');
+        }
+    },
+
+    /**
+     * Check if user can create a new class based on subscription limits
+     * Enforces 6-class limit for free users, with grandfathering for existing users
+     */
+    async checkClassLimit(userIdOverride?: string): Promise<{
+        canCreate: boolean;
+        current: number;
+        limit: number;
+        remaining: number;
+        reason?: 'free_limit_reached' | 'grandfathered' | 'premium';
+    }> {
+        const uid = userIdOverride || getCurrentUserId();
+
+        if (!uid || isVirtualMode()) {
+            return { canCreate: true, current: 0, limit: Infinity, remaining: Infinity };
+        }
+
+        try {
+            // Get subscription
+            const subscription = await this.getSubscription(uid);
+
+            // Get current class count
+            const classesSnapshot = await getDocs(
+                query(collection(db, COLLECTIONS.CLASSES), where('userId', '==', uid))
+            );
+            const currentCount = classesSnapshot.size;
+
+            // Premium: unlimited
+            if (subscription.tier === 'premium' && subscription.status === 'active') {
+                return {
+                    canCreate: true,
+                    current: currentCount,
+                    limit: Infinity,
+                    remaining: Infinity,
+                    reason: 'premium'
+                };
+            }
+
+            // Grandfathered: unlimited
+            if (subscription.grandfathered) {
+                return {
+                    canCreate: true,
+                    current: currentCount,
+                    limit: Infinity,
+                    remaining: Infinity,
+                    reason: 'grandfathered'
+                };
+            }
+
+            // Free: enforce 6-class limit
+            const FREE_CLASS_LIMIT = 6;
+            const canCreate = currentCount < FREE_CLASS_LIMIT;
+
+            return {
+                canCreate,
+                current: currentCount,
+                limit: FREE_CLASS_LIMIT,
+                remaining: Math.max(0, FREE_CLASS_LIMIT - currentCount),
+                reason: canCreate ? undefined : 'free_limit_reached'
+            };
+        } catch (error) {
+            console.error('Error checking class limit:', error);
+            // Fail open in case of error
+            return { canCreate: true, current: 0, limit: 6, remaining: 6 };
+        }
+    },
+    async checkSyncStatus(): Promise<void> {
+        const uid = getCurrentUserId();
+        if (!uid || isVirtualMode()) return;
+
+        // NEW: Sync pending feedback
+        try {
+            const pendingFeedback = getLocal<any>('pending_feedback');
+            if (pendingFeedback.length > 0) {
+                console.log(`Syncing ${pendingFeedback.length} pending feedback items...`);
+                // Process sequentially to maintain order
+                const remaining: any[] = [];
+                for (const item of pendingFeedback) {
+                    try {
+                        const feedbackRef = collection(db, 'feedback');
+                        await addDoc(feedbackRef, {
+                            ...item,
+                            createdAt: item.createdAt ? new Date(item.createdAt) : serverTimestamp(),
+                            syncedAt: serverTimestamp()
+                        });
+                    } catch (e) {
+                        console.error("Failed to sync feedback item:", e);
+                        remaining.push(item);
+                    }
+                }
+                setLocal('pending_feedback', remaining);
+                if (remaining.length < pendingFeedback.length) {
+                    console.log("Feedback sync completed.");
+                }
+            }
+        } catch (e) {
+            console.error("Error syncing pending feedback:", e);
+        }
+
+        try {
+            const classes = await this.getClasses();
+            const legacyClasses = classes.filter(c => (c.schemaVersion || 0) < CURRENT_SCHEMA_VERSION);
+            if (legacyClasses.length > 0) {
+                console.info(`Vicente: Found ${legacyClasses.length} legacy classes. Migration required in Phase III.`);
+            }
+        } catch (e) {
+            console.error("Sync status check failed:", e);
+        }
+    },
+
+    // --- Feedback ---
+    async addFeedback(data: any): Promise<void> {
+        if (isVirtualMode()) {
+            console.log('[Virtual] Feedback submitted:', data);
+            return;
+        }
+
+        // Offline Handling
+        if (!isValidNetwork()) {
+            console.log('[Offline] Queueing feedback:', data);
+            const currentQueue = getLocal<any>('pending_feedback');
+            // Store with local timestamp
+            const queueItem = { ...data, createdAt: new Date().toISOString() };
+            setLocal('pending_feedback', [...currentQueue, queueItem]);
+            return;
+        }
+
+        try {
+            const feedbackRef = collection(db, 'feedback');
+            await addDoc(feedbackRef, {
+                ...data,
+                createdAt: serverTimestamp()
+            });
+        } catch (error: any) {
+            console.warn('Error submitting feedback, falling back to offline queue:', error);
+            // Fallback to queue if write fails
+            const currentQueue = getLocal<any>('pending_feedback');
+            const queueItem = { ...data, createdAt: new Date().toISOString() };
+            setLocal('pending_feedback', [...currentQueue, queueItem]);
+        }
+    },
+
+    async uploadFeedbackScreenshot(blob: Blob): Promise<string> {
+        if (isVirtualMode()) {
+            return 'offline:screenshot_' + Date.now();
+        }
+        const filename = `feedback_screenshots/${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
+        const storageRef = ref(storage, filename);
+        await uploadBytes(storageRef, blob);
+        return await getDownloadURL(storageRef);
+    }
+};
+
+if (typeof window !== 'undefined') (window as any).api = api;
+
+```
+--- END OF FILE: services/api.ts ---
+
+
+--- START OF FILE: services/authService.ts ---
+```ts
+
+import { auth } from '../firebase';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInAnonymously,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+  User as FirebaseUser,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
+  sendPasswordResetEmail,
+  confirmPasswordReset,
+  deleteUser
+} from "firebase/auth";
+import { User } from '../types';
+
+// Store reference to the observer callback to trigger it manually if needed
+let authStateObserver: ((user: User | null) => void) | null = null;
+let isVirtualDemo = false;
+
+export const authService = {
+  // Sign Up
+  async signUp(name: string, email: string, pass: string): Promise<User | null> {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      if (userCredential.user) {
+        await updateProfile(userCredential.user, { displayName: name });
+
+        const updatedUser: User = {
+          id: userCredential.user.uid,
+          name: name,
+          email: userCredential.user.email || '',
+          password: ''
+        };
+
+        if (authStateObserver) {
+          authStateObserver(updatedUser);
+        }
+
+        return updatedUser;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error signing up:", error);
+      throw error;
+    }
+  },
+
+  // Login
+  async login(email: string, pass: string): Promise<User | null> {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+      const u = userCredential.user;
+      return {
+        id: u.uid,
+        name: u.displayName || 'Usuario',
+        email: u.email || '',
+        password: ''
+      };
+    } catch (error) {
+      console.error("Error logging in:", error);
+      throw error;
+    }
+  },
+
+  // Demo Login (Anonymous with Virtual Fallback)
+  async loginDemo(): Promise<void> {
+    try {
+      // Try official Firebase Anonymous Login
+      await signInAnonymously(auth);
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: 'Invitado Demo' });
+      }
+    } catch (error: any) {
+      console.warn("Firebase Anonymous Auth restricted, switching to Virtual Demo Mode:", error.message);
+
+      // Fallback: Create a Virtual Session
+      isVirtualDemo = true;
+      localStorage.setItem('regis_virtual_demo', 'true');
+
+      const virtualUser: User = {
+        id: 'DEMO_GUEST_USER',
+        name: 'Invitado Demo (Local)',
+        email: 'demo@regis.app',
+        password: ''
+      };
+
+      if (authStateObserver) {
+        authStateObserver(virtualUser);
+      }
+    }
+  },
+
+  // Update Photo
+  async updatePhotoURL(photoURL: string): Promise<void> {
+    if (auth.currentUser) {
+      await updateProfile(auth.currentUser, { photoURL });
+      if (authStateObserver) {
+        authStateObserver({
+          id: auth.currentUser.uid,
+          name: auth.currentUser.displayName || 'Usuario',
+          email: auth.currentUser.email || '',
+          password: ''
+        });
+      }
+    }
+  },
+
+  // Logout
+  async logout(): Promise<void> {
+    try {
+      isVirtualDemo = false;
+      localStorage.clear();
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  },
+
+  // Social Login & Recovery
+  async loginWithGoogle(): Promise<User | null> {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
+    } catch (error) {
+      console.error("Google Login Error:", error);
+      throw error;
+    }
+  },
+
+  async loginWithFacebook(): Promise<User | null> {
+    try {
+      const provider = new FacebookAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
+    } catch (error) {
+      console.error("Facebook Login Error:", error);
+      throw error;
+    }
+  },
+
+  async loginWithApple(): Promise<User | null> {
+    try {
+      const provider = new OAuthProvider('apple.com');
+      const result = await signInWithPopup(auth, provider);
+      return result.user ? { id: result.user.uid, name: result.user.displayName || 'Usuario', email: result.user.email || '', password: '' } : null;
+    } catch (error) {
+      console.error("Apple Login Error:", error);
+      throw error;
+    }
+  },
+
+  async resetPassword(email: string): Promise<void> {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      console.error("Reset Password Error:", error);
+      throw error;
+    }
+  },
+
+  async confirmPasswordReset(code: string, newPass: string): Promise<void> {
+    try {
+      await confirmPasswordReset(auth, code, newPass);
+    } catch (error) {
+      console.error("Confirm Password Reset Error:", error);
+      throw error;
+    }
+  },
+
+  async deleteAccount(): Promise<void> {
+    try {
+      if (auth.currentUser) {
+        await deleteUser(auth.currentUser);
+      }
+    } catch (error) {
+      console.error("Delete Account Error:", error);
+      throw error;
+    }
+  },
+
+  // Auth Observer
+  onAuthStateChange(callback: (user: User | null) => void) {
+    authStateObserver = callback;
+
+    // Check if we were in virtual demo mode
+    const wasVirtual = localStorage.getItem('regis_virtual_demo') === 'true';
+    if (wasVirtual) {
+      isVirtualDemo = true;
+      setTimeout(() => {
+        callback({
+          id: 'DEMO_GUEST_USER',
+          name: 'Invitado Demo (Local)',
+          email: 'demo@regis.app',
+          password: ''
+        });
+      }, 100);
+    }
+
+    return onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+      // Only trigger if we are NOT in virtual mode (to avoid overwriting)
+      if (firebaseUser) {
+        isVirtualDemo = false;
+        localStorage.removeItem('regis_virtual_demo');
+        callback({
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || (firebaseUser.isAnonymous ? 'Invitado Demo' : 'Usuario'),
+          email: firebaseUser.email || (firebaseUser.isAnonymous ? 'demo@regis.app' : ''),
+          password: ''
+        });
+      } else if (!isVirtualDemo && !wasVirtual) {
+        callback(null);
+      }
+    });
+  },
+
+  isDemoMode() {
+    return isVirtualDemo || (auth.currentUser?.isAnonymous ?? false);
+  },
+
+  getCurrentUser() {
+    if (this.isDemoMode()) return { id: 'DEMO_GUEST_USER', name: 'Invitado', email: '', password: '' };
+    if (!auth.currentUser) return null;
+    return {
+      id: auth.currentUser.uid,
+      name: auth.currentUser.displayName || 'Usuario',
+      email: auth.currentUser.email || '',
+      password: ''
+    };
+  }
+};
+
+```
+--- END OF FILE: services/authService.ts ---
+
+
+--- START OF FILE: services/curriculumService.ts ---
+```ts
+
+import { db } from '../firebase';
+import { doc, writeBatch, collection, getDocs, query, where, getDoc } from "firebase/firestore";
+import type { CurriculumData, FirestoreCurriculum, FirestoreCompetency, FirestoreIndicator } from '../types';
+
+// --- MIGRATION / SEEDER ---
+
+export const uploadCurriculumData = async () => {
+  if (!db) {
+      throw new Error("Firebase no está configurado. Revise firebase.ts.");
+  }
+
+  try {
+    console.log("Iniciando migración fragmentada...");
+    const batch = writeBatch(db);
+    let opCount = 0;
+    const MAX_BATCH_SIZE = 450;
+
+    // 1. Load Curriculums
+    const curriculumsRes = await fetch('/data/curriculums.json');
+    if (!curriculumsRes.ok) throw new Error('No se pudo leer data/curriculums.json');
+    const curriculums: FirestoreCurriculum[] = await curriculumsRes.json();
+
+    // 2. Load Competencies (Fragmented)
+    const competencyFiles = [
+        '/data/competencies_sociales.json',
+        '/data/competencies_sociales_sec_2ciclo.json',
+        '/data/competencies_matematica.json',
+        '/data/competencies_lengua.json',
+        '/data/competencies_naturales_sec_1ciclo.json',
+        // Add more as needed, failing silently if not found is safer for partial updates
+    ];
+
+    let allCompetencies: FirestoreCompetency[] = [];
+    for (const file of competencyFiles) {
+        try {
+            const res = await fetch(file);
+            if (res.ok) {
+                const comps: FirestoreCompetency[] = await res.json();
+                allCompetencies = [...allCompetencies, ...comps];
+            }
+        } catch (e) {
+            console.warn(`Skipping ${file}:`, e);
+        }
+    }
+
+    // 3. Process Curriculums
+    for (const curr of curriculums) {
+        const curriculumRef = doc(db, "curriculums", curr.id);
+        batch.set(curriculumRef, curr);
+        opCount++;
+    }
+
+    // 4. Process Competencies and Indicators
+    for (const comp of allCompetencies) {
+        // Create Competency Document
+        const compRef = doc(db, "competencies", comp.code);
+        batch.set(compRef, comp);
+        opCount++;
+
+        // Create Indicator Documents
+        if (comp.indicators) {
+            for (const ind of comp.indicators) {
+                const indRef = doc(db, "indicators", ind.id);
+                const indicatorData: FirestoreIndicator = {
+                    id: ind.id,
+                    text: ind.text,
+                    curriculumId: comp.curriculumId,
+                    competencyId: comp.code,
+                    grade: "", // These are derived in the types but not stored flat here usually, 
+                               // but let's keep it consistent with previous logic if possible.
+                               // Actually, curriculumId links it back.
+                    subject: ""
+                };
+                batch.set(indRef, indicatorData);
+                opCount++;
+            }
+        }
+
+        if (opCount >= MAX_BATCH_SIZE) {
+            console.warn("Límite de batch alcanzado. Esto es una migración simple, por favor ejecute en chunks si falla.");
+        }
+    }
+
+    await batch.commit();
+    console.log("¡Migración a Firestore completada con éxito!");
+    return true;
+
+  } catch (error) {
+    console.error("Error durante la migración:", error);
+    throw error;
+  }
+};
+
+// --- OPTIMIZED READ OPERATIONS ---
+
+export const getCurriculumsFromFirestore = async (): Promise<FirestoreCurriculum[]> => {
+    if (!db) return [];
+    try {
+        const snapshot = await getDocs(collection(db, "curriculums"));
+        return snapshot.docs.map(doc => doc.data() as FirestoreCurriculum);
+    } catch (error) {
+        console.error("Error fetching curriculums:", error);
+        return [];
+    }
+};
+
+export const getCompetencyDetail = async (competencyId: string): Promise<FirestoreCompetency | null> => {
+    if (!db) return null;
+    try {
+        const docRef = doc(db, "competencies", competencyId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return docSnap.data() as FirestoreCompetency;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching competency detail:", error);
+        return null;
+    }
+};
+
+export const getCurriculumByGradeAndSubject = async (grade: string, subject: string): Promise<FirestoreCurriculum | null> => {
+    if (!db) return null;
+    try {
+        let q = query(
+            collection(db, "curriculums"),
+            where("grade", "==", grade),
+            where("subject", "==", subject)
+        );
+        let querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty && !grade.includes("Grado")) {
+             q = query(
+                collection(db, "curriculums"),
+                where("grade", "==", `${grade} Grado`),
+                where("subject", "==", subject)
+            );
+            querySnapshot = await getDocs(q);
+        }
+
+        if (!querySnapshot.empty) {
+            return querySnapshot.docs[0].data() as FirestoreCurriculum;
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching curriculum by grade/subject:", error);
+        return null;
+    }
+};
+
+export const searchIndicators = async (queryText: string): Promise<FirestoreIndicator[]> => {
+    if (!db || !queryText) return [];
+    console.warn("Full text search requires Algolia extension in Firestore.");
+    return [];
+};
+
+```
+--- END OF FILE: services/curriculumService.ts ---
+
+
+--- START OF FILE: public/data/curriculums.json ---
+```json
+
+[
+  {
+    "id": "nivel_primario_5to_lengua_española",
+    "level": "Nivel Primario",
+    "grade": "5to",
+    "subject": "Lengua Española",
+    "contents": [
+      { "id": "LE-5-CONT-1", "text": "El cuento: estructura (inicio, nudo, desenlace) y elementos (personajes, ambiente, tiempo)." },
+      { "id": "LE-5-CONT-2", "text": "La descripción: de personas, animales, objetos y lugares." },
+      { "id": "LE-5-CONT-3", "text": "El texto expositivo: estructura de introducción, desarrollo y conclusión." },
+      { "id": "LE-5-CONT-4", "text": "Uso de mayúsculas, punto, coma y signos de interrogación y exclamación." }
+    ],
+    "competenciesSummary": [
+      { "id": "LE-5-C-ORAL", "code": "LE-5-C-ORAL", "name": "Comprensión oral", "fundamentalId": "FC2" },
+      { "id": "LE-5-P-ORAL", "code": "LE-5-P-ORAL", "name": "Producción oral", "fundamentalId": "FC2" },
+      { "id": "LE-5-C-ESCRITA", "code": "LE-5-C-ESCRITA", "name": "Comprensión escrita", "fundamentalId": "FC2" },
+      { "id": "LE-5-P-ESCRITA", "code": "LE-5-P-ESCRITA", "name": "Producción escrita", "fundamentalId": "FC2" }
+    ]
+  },
+  {
+    "id": "nivel_primario_5to_matemática",
+    "level": "Nivel Primario",
+    "grade": "5to",
+    "subject": "Matemática",
+    "contents": [
+      { "id": "MAT-5-CONT-1", "text": "Números naturales hasta el millón: lectura, escritura, comparación y orden." },
+      { "id": "MAT-5-CONT-2", "text": "Operaciones básicas: adición, sustracción, multiplicación y división con números naturales." },
+      { "id": "MAT-5-CONT-3", "text": "Fracciones: concepto, representación, comparación y operaciones de suma y resta con igual denominador." },
+      { "id": "MAT-5-CONT-4", "text": "Figuras geométricas planas: polígonos, círculos. Perímetro." }
+    ],
+    "competenciesSummary": [
+      { "id": "MAT-5-RAZONA", "code": "MAT-5-RAZONA", "name": "Razona y argumenta", "fundamentalId": "FC3" },
+      { "id": "MAT-5-COMUNICA", "code": "MAT-5-COMUNICA", "name": "Comunica", "fundamentalId": "FC4" },
+      { "id": "MAT-5-MODELA", "code": "MAT-5-MODELA", "name": "Modela y representa", "fundamentalId": "FC4" },
+      { "id": "MAT-5-CONECTA", "code": "MAT-5-CONECTA", "name": "Conecta", "fundamentalId": "FC5" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_1ro_matemática",
+    "level": "Nivel Secundario",
+    "grade": "1ro",
+    "subject": "Matemática",
+    "contents": [
+        { "id": "CON-MAT-1-01", "text": "Numeración: Números enteros y racionales." },
+        { "id": "CON-MAT-1-02", "text": "Finanzas: Matemática financiera, interés simple, economía." },
+        { "id": "CON-MAT-1-03", "text": "Rectas y Ángulos: Tipos, Teorema de Pitágoras." },
+        { "id": "CON-MAT-1-04", "text": "Unidades de medidas: volumen de primas y pirámides." },
+        { "id": "CON-MAT-1-05", "text": "Estadísticas: Gráficos, Medidas de tendencia central, Probabilidad." }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-MAT-1-01", "code": "CE-MAT-1-01", "name": "Interpretación Numérica y Financiera", "fundamentalId": "FC2" },
+        { "id": "CE-MAT-1-02", "code": "CE-MAT-1-02", "name": "Razonamiento Geométrico", "fundamentalId": "FC3" },
+        { "id": "CE-MAT-1-03", "code": "CE-MAT-1-03", "name": "Resolución con Medición", "fundamentalId": "FC4" },
+        { "id": "CE-MAT-1-04", "code": "CE-MAT-1-04", "name": "Responsabilidad en Medición", "fundamentalId": "FC1" },
+        { "id": "CE-MAT-1-05", "code": "CE-MAT-1-05", "name": "Tecnología y Estadística", "fundamentalId": "FC5" },
+        { "id": "CE-MAT-1-06", "code": "CE-MAT-1-06", "name": "Soluciones Comunitarias", "fundamentalId": "FC6" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_2do_matemática",
+    "level": "Nivel Secundario",
+    "grade": "2do",
+    "subject": "Matemática",
+    "contents": [
+        { "id": "CON-MAT-2-01", "text": "Numeración: Números reales, irracionales, patrones." },
+        { "id": "CON-MAT-2-02", "text": "Algebra: Expresiones algebraicas, Ecuaciones, Desigualdades, Planificación financiera." },
+        { "id": "CON-MAT-2-03", "text": "Geometría: Plano cartesiano, Distancia, Fórmula de Herón, Cuerpos redondos." },
+        { "id": "CON-MAT-2-04", "text": "Estadística: Medidas de dispersión, Probabilidad eventos compuestos." }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-MAT-2-01", "code": "CE-MAT-2-01", "name": "Comunicación Algebraica y Financiera", "fundamentalId": "FC2" },
+        { "id": "CE-MAT-2-02", "code": "CE-MAT-2-02", "name": "Argumentación Lógica", "fundamentalId": "FC3" },
+        { "id": "CE-MAT-2-03", "code": "CE-MAT-2-03", "name": "Resolución Geométrica", "fundamentalId": "FC4" },
+        { "id": "CE-MAT-2-04", "code": "CE-MAT-2-04", "name": "Tecnología y Estadística Agrupada", "fundamentalId": "FC5" },
+        { "id": "CE-MAT-2-05", "code": "CE-MAT-2-05", "name": "Evaluación para la Salud", "fundamentalId": "FC6" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_3ro_matemática",
+    "level": "Nivel Secundario",
+    "grade": "3ro",
+    "subject": "Matemática",
+    "contents": [
+        { "id": "CON-MAT-3-01", "text": "Álgebra: Polinomios, Productos notables, Factorización." },
+        { "id": "CON-MAT-3-02", "text": "Ecuaciones: Lineales con coeficientes racionales/irracionales." },
+        { "id": "CON-MAT-3-03", "text": "Funciones: Concepto, Dominio, Rango, Función algebraica." },
+        { "id": "CON-MAT-3-04", "text": "Lógica: Diagrama de Venn-Euler." },
+        { "id": "CON-MAT-3-05", "text": "Sistemas de ecuaciones lineales." }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-MAT-3-01", "code": "CE-MAT-3-01", "name": "Comunicación Algebraica", "fundamentalId": "FC2" },
+        { "id": "CE-MAT-3-02", "code": "CE-MAT-3-02", "name": "Interpretación Algebraica", "fundamentalId": "FC3" },
+        { "id": "CE-MAT-3-03", "code": "CE-MAT-3-03", "name": "Resolución de Problemas Algebraicos", "fundamentalId": "FC4" },
+        { "id": "CE-MAT-3-04", "code": "CE-MAT-3-04", "name": "Tecnología en Álgebra", "fundamentalId": "FC5" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_4to_matemática",
+    "level": "Nivel Secundario",
+    "grade": "4to",
+    "subject": "Matemática",
+    "contents": [
+        { "id": "CON-MAT-4-01", "text": "Geometría: Ángulos, Rectas, Postulados." },
+        { "id": "CON-MAT-4-02", "text": "Geometría: Polígonos." },
+        { "id": "CON-MAT-4-03", "text": "Geometría: Triángulos (propiedades, congruencia)." },
+        { "id": "CON-MAT-4-04", "text": "Geometría: Circunferencia." },
+        { "id": "CON-MAT-4-05", "text": "Geometría: Área y volumen de poliedros." },
+        { "id": "CON-MAT-4-06", "text": "Geometría: Transformaciones geométricas." }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-MAT-4-01", "code": "CE-MAT-4-01", "name": "Interpretación Geométrica", "fundamentalId": "FC2" },
+        { "id": "CE-MAT-4-02", "code": "CE-MAT-4-02", "name": "Explicación Lógica", "fundamentalId": "FC3" },
+        { "id": "CE-MAT-4-03", "code": "CE-MAT-4-03", "name": "Resolución de Problemas Geométricos", "fundamentalId": "FC4" },
+        { "id": "CE-MAT-4-04", "code": "CE-MAT-4-04", "name": "Ética y Autonomía Geométrica", "fundamentalId": "FC1" },
+        { "id": "CE-MAT-4-05", "code": "CE-MAT-4-05", "name": "Tecnología en Geometría", "fundamentalId": "FC5" },
+        { "id": "CE-MAT-4-06", "code": "CE-MAT-4-06", "name": "Geometría y Medio Ambiente", "fundamentalId": "FC6" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_5to_matemática",
+    "level": "Nivel Secundario",
+    "grade": "5to",
+    "subject": "Matemática",
+    "contents": [
+        { "id": "CON-MAT-5-01", "text": "Cónicas: Ecuaciones (recta, circunferencia, parábola, elipse, hipérbola)." },
+        { "id": "CON-MAT-5-02", "text": "Vectores y Matrices: Tipos, Operaciones, Determinantes, Inversa." },
+        { "id": "CON-MAT-5-03", "text": "Trigonometría: Funciones, Ley senos/cosenos, Identidades pitagóricas." }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-MAT-5-01", "code": "CE-MAT-5-01", "name": "Justificación Algebraica y Trigonométrica", "fundamentalId": "FC2" },
+        { "id": "CE-MAT-5-02", "code": "CE-MAT-5-02", "name": "Razonamiento Lógico", "fundamentalId": "FC3" },
+        { "id": "CE-MAT-5-03", "code": "CE-MAT-5-03", "name": "Resolución Trigonométrica", "fundamentalId": "FC4" },
+        { "id": "CE-MAT-5-04", "code": "CE-MAT-5-04", "name": "Justificación Ética", "fundamentalId": "FC1" },
+        { "id": "CE-MAT-5-05", "code": "CE-MAT-5-05", "name": "Discriminación Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-MAT-5-06", "code": "CE-MAT-5-06", "name": "Contribución Ambiental", "fundamentalId": "FC6" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_6to_matemática",
+    "level": "Nivel Secundario",
+    "grade": "6to",
+    "subject": "Matemática",
+    "contents": [
+        { "id": "CON-MAT-6-01", "text": "Teoría de ecuaciones: Teorema fundamental del álgebra." },
+        { "id": "CON-MAT-6-02", "text": "Ecuaciones: Exponenciales, Logarítmicas, Inecuaciones cuadráticas." },
+        { "id": "CON-MAT-6-03", "text": "Sucesiones y Finanzas: Progresiones, Interés compuesto, Valor actual." },
+        { "id": "CON-MAT-6-04", "text": "Números Complejos." },
+        { "id": "CON-MAT-6-05", "text": "Trigonometría: Ecuaciones, Ángulo doble/triple." },
+        { "id": "CON-MAT-6-06", "text": "Cálculo: Límites, Derivadas, Integrales simples." }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-MAT-6-01", "code": "CE-MAT-6-01", "name": "Comunicación del Cálculo", "fundamentalId": "FC2" },
+        { "id": "CE-MAT-6-02", "code": "CE-MAT-6-02", "name": "Justificación Lógica", "fundamentalId": "FC3" },
+        { "id": "CE-MAT-6-03", "code": "CE-MAT-6-03", "name": "Resolución con Cálculo", "fundamentalId": "FC4" },
+        { "id": "CE-MAT-6-04", "code": "CE-MAT-6-04", "name": "Interpretación Rigurosa", "fundamentalId": "FC1" },
+        { "id": "CE-MAT-6-05", "code": "CE-MAT-6-05", "name": "Evaluación Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-MAT-6-06", "code": "CE-MAT-6-06", "name": "Aplicación Ambiental", "fundamentalId": "FC6" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_1ro_ciencias_sociales",
+    "level": "Nivel Secundario",
+    "grade": "1ro",
+    "subject": "Ciencias Sociales",
+    "contents": [
+        { "id": "CON-CSOC-S1-01", "text": "La Geografía y su estudio: Concepto de Geografía" },
+        { "id": "CON-CSOC-S1-02", "text": "Ramas de la Geografía" },
+        { "id": "CON-CSOC-S1-03", "text": "Importancia del estudio de la geografía para la vida" },
+        { "id": "CON-CSOC-S1-04", "text": "La Tierra y su representación" },
+        { "id": "CON-CSOC-S1-05", "text": "La tierra en el sistema solar" },
+        { "id": "CON-CSOC-S1-06", "text": "Movimientos de la Tierra" },
+        { "id": "CON-CSOC-S1-07", "text": "La Cartografía" },
+        { "id": "CON-CSOC-S1-08", "text": "La cartografía y su importancia" },
+        { "id": "CON-CSOC-S1-09", "text": "Representaciones de la Tierra" },
+        { "id": "CON-CSOC-S1-10", "text": "Puntos Cardinales y rosa de los vientos" },
+        { "id": "CON-CSOC-S1-11", "text": "Meridiano de Greenwich, Escala Mercator y otras escalas" },
+        { "id": "CON-CSOC-S1-12", "text": "Diferencias entre mapas y planos. Sus componentes" },
+        { "id": "CON-CSOC-S1-13", "text": "Meridianos y paralelos. Medidas de posición" },
+        { "id": "CON-CSOC-S1-14", "text": "Expansión colonial europea" },
+        { "id": "CON-CSOC-S1-15", "text": "Colonialismo, esclavitud y prejuicio de color" },
+        { "id": "CON-CSOC-S1-22", "text": "Revoluciones Burguesas" },
+        { "id": "CON-CSOC-S1-28", "text": "Surgimiento del nacionalismo" },
+        { "id": "CON-CSOC-S1-30", "text": "Educación ciudadana, identidad cultural e interculturalidad" },
+        { "id": "CON-CSOC-S1-31", "text": "Los Derechos Humanos" },
+        { "id": "CON-CSOC-S1-32", "text": "La Constitución Dominicana: Derechos y deberes" },
+        { "id": "CON-CSOC-S1-42", "text": "Calentamiento global" }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-CSOC-S1-01", "code": "CE-CSOC-S1-01", "name": "Competencia Comunicativa", "fundamentalId": "FC2" },
+        { "id": "CE-CSOC-S1-02", "code": "CE-CSOC-S1-02", "name": "Competencia de Pensamiento Lógico, Creativo y Crítico", "fundamentalId": "FC3" },
+        { "id": "CE-CSOC-S1-03", "code": "CE-CSOC-S1-03", "name": "Competencia de Resolución de Problemas", "fundamentalId": "FC4" },
+        { "id": "CE-CSOC-S1-04", "code": "CE-CSOC-S1-04", "name": "Competencia Ética y Ciudadana", "fundamentalId": "FC1" },
+        { "id": "CE-CSOC-S1-05", "code": "CE-CSOC-S1-05", "name": "Competencia Científica y Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-CSOC-S1-06", "code": "CE-CSOC-S1-06", "name": "Competencia Ambiental y de la Salud", "fundamentalId": "FC6" },
+        { "id": "CE-CSOC-S1-07", "code": "CE-CSOC-S1-07", "name": "Competencia de Desarrollo Personal y Espiritual", "fundamentalId": "FC7" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_2do_ciencias_sociales",
+    "level": "Nivel Secundario",
+    "grade": "2do",
+    "subject": "Ciencias Sociales",
+    "contents": [
+        { "id": "CON-CSOC-S2-01", "text": "La Tierra, nuestra casa: el escenario de la humanidad" },
+        { "id": "CON-CSOC-S2-02", "text": "Geomorfología como ciencia y su campo de estudio" },
+        { "id": "CON-CSOC-S2-03", "text": "Teorías sobre las placas tectónicas" },
+        { "id": "CON-CSOC-S2-17", "text": "Dinámicas de la población: Tasas demográficas" },
+        { "id": "CON-CSOC-S2-21", "text": "Imperialismo y revolución en el escenario mundial" },
+        { "id": "CON-CSOC-S2-25", "text": "Sociedad dominicana durante la segunda mitad del siglo XIX" },
+        { "id": "CON-CSOC-S2-31", "text": "La Primera Guerra Mundial" },
+        { "id": "CON-CSOC-S2-40", "text": "Democracia y Estado de derecho" },
+        { "id": "CON-CSOC-S2-41", "text": "Derechos Fundamentales en la República Dominicana" }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-CSOC-S2-01", "code": "CE-CSOC-S2-01", "name": "Competencia Comunicativa", "fundamentalId": "FC2" },
+        { "id": "CE-CSOC-S2-02", "code": "CE-CSOC-S2-02", "name": "Competencia de Pensamiento Lógico, Creativo y Crítico", "fundamentalId": "FC3" },
+        { "id": "CE-CSOC-S2-03", "code": "CE-CSOC-S2-03", "name": "Competencia de Resolución de Problemas", "fundamentalId": "FC4" },
+        { "id": "CE-CSOC-S2-04", "code": "CE-CSOC-S2-04", "name": "Competencia Ética y Ciudadana", "fundamentalId": "FC1" },
+        { "id": "CE-CSOC-S2-05", "code": "CE-CSOC-S2-05", "name": "Competencia Científica y Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-CSOC-S2-06", "code": "CE-CSOC-S2-06", "name": "Competencia Ambiental y de la Salud", "fundamentalId": "FC6" },
+        { "id": "CE-CSOC-S2-07", "code": "CE-CSOC-S2-07", "name": "Competencia de Desarrollo Personal y Espiritual", "fundamentalId": "FC7" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_3ro_ciencias_sociales",
+    "level": "Nivel Secundario",
+    "grade": "3ro",
+    "subject": "Ciencias Sociales",
+    "contents": [
+        { "id": "CON-CSOC-S3-01", "text": "Teorías sobre el origen geológico del continente americano" },
+        { "id": "CON-CSOC-S3-04", "text": "Geografía Física del continente americano" },
+        { "id": "CON-CSOC-S3-07", "text": "Geografía Humana del continente americano" },
+        { "id": "CON-CSOC-S3-09", "text": "Geografía económica del continente americano" },
+        { "id": "CON-CSOC-S3-14", "text": "Expansionismo y Hegemonía Estadounidense" },
+        { "id": "CON-CSOC-S3-18", "text": "Crisis económicas de la Segunda Guerra Mundial" },
+        { "id": "CON-CSOC-S3-19", "text": "Dictaduras y auge del populismo en Latinoamérica" },
+        { "id": "CON-CSOC-S3-28", "text": "Educación Ciudadana: Derechos humanos, gobernanza" }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-CSOC-S3-01", "code": "CE-CSOC-S3-01", "name": "Competencia Comunicativa", "fundamentalId": "FC2" },
+        { "id": "CE-CSOC-S3-02", "code": "CE-CSOC-S3-02", "name": "Competencia de Pensamiento Lógico, Creativo y Crítico", "fundamentalId": "FC3" },
+        { "id": "CE-CSOC-S3-03", "code": "CE-CSOC-S3-03", "name": "Competencia de Resolución de Problemas", "fundamentalId": "FC4" },
+        { "id": "CE-CSOC-S3-04", "code": "CE-CSOC-S3-04", "name": "Competencia Ética y Ciudadana", "fundamentalId": "FC1" },
+        { "id": "CE-CSOC-S3-05", "code": "CE-CSOC-S3-05", "name": "Competencia Científica y Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-CSOC-S3-06", "code": "CE-CSOC-S3-06", "name": "Competencia Ambiental y de la Salud", "fundamentalId": "FC6" },
+        { "id": "CE-CSOC-S3-07", "code": "CE-CSOC-S3-07", "name": "Competencia de Desarrollo Personal y Espiritual", "fundamentalId": "FC7" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_4to_ciencias_sociales",
+    "level": "Nivel Secundario",
+    "grade": "4to",
+    "subject": "Ciencias Sociales",
+    "contents": [
+        { "id": "CON-CSOC-S4-01", "text": "Geografía Universal: Sistema solar" },
+        { "id": "CON-CSOC-S4-09", "text": "Deriva continental y placas tectónicas" },
+        { "id": "CON-CSOC-S4-25", "text": "Consecuencias de la acción humana sobre la naturaleza" },
+        { "id": "CON-CSOC-S4-27", "text": "Historia Universal: La historia como ciencia" },
+        { "id": "CON-CSOC-S4-35", "text": "Revoluciones burguesas: Industrial y francesa" },
+        { "id": "CON-CSOC-S4-45", "text": "Educación ciudadana: Constitución Dominicana" }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-CSOC-S4-01", "code": "CE-CSOC-S4-01", "name": "Competencia Comunicativa", "fundamentalId": "FC2" },
+        { "id": "CE-CSOC-S4-02", "code": "CE-CSOC-S4-02", "name": "Competencia de Pensamiento Lógico, Creativo y Crítico", "fundamentalId": "FC3" },
+        { "id": "CE-CSOC-S4-03", "code": "CE-CSOC-S4-03", "name": "Competencia de Resolución de Problemas", "fundamentalId": "FC4" },
+        { "id": "CE-CSOC-S4-04", "code": "CE-CSOC-S4-04", "name": "Competencia Ética y Ciudadana", "fundamentalId": "FC1" },
+        { "id": "CE-CSOC-S4-05", "code": "CE-CSOC-S4-05", "name": "Competencia Científica y Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-CSOC-S4-06", "code": "CE-CSOC-S4-06", "name": "Competencia Ambiental y de la Salud", "fundamentalId": "FC6" },
+        { "id": "CE-CSOC-S4-07", "code": "CE-CSOC-S4-07", "name": "Competencia de Desarrollo Personal y Espiritual", "fundamentalId": "FC7" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_5to_ciencias_sociales",
+    "level": "Nivel Secundario",
+    "grade": "5to",
+    "subject": "Ciencias Sociales",
+    "contents": [
+        { "id": "CON-CSOC-S5-01", "text": "Geografía de la isla de Santo Domingo" },
+        { "id": "CON-CSOC-S5-05", "text": "Actividades económicas primarias" },
+        { "id": "CON-CSOC-S5-07", "text": "Historia dominicana: Periodos" },
+        { "id": "CON-CSOC-S5-21", "text": "Independencia Nacional" },
+        { "id": "CON-CSOC-S5-26", "text": "Educación ciudadana: Surgimiento de Estado Dominicano" }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-CSOC-S5-01", "code": "CE-CSOC-S5-01", "name": "Competencia Comunicativa", "fundamentalId": "FC2" },
+        { "id": "CE-CSOC-S5-02", "code": "CE-CSOC-S5-02", "name": "Competencia de Pensamiento Lógico, Creativo y Crítico", "fundamentalId": "FC3" },
+        { "id": "CE-CSOC-S5-03", "code": "CE-CSOC-S5-03", "name": "Competencia de Resolución de Problemas", "fundamentalId": "FC4" },
+        { "id": "CE-CSOC-S5-04", "code": "CE-CSOC-S5-04", "name": "Competencia Ética y Ciudadana", "fundamentalId": "FC1" },
+        { "id": "CE-CSOC-S5-05", "code": "CE-CSOC-S5-05", "name": "Competencia Científica y Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-CSOC-S5-06", "code": "CE-CSOC-S5-06", "name": "Competencia Ambiental y de la Salud", "fundamentalId": "FC6" },
+        { "id": "CE-CSOC-S5-07", "code": "CE-CSOC-S5-07", "name": "Competencia de Desarrollo Personal y Espiritual", "fundamentalId": "FC7" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_6to_ciencias_sociales",
+    "level": "Nivel Secundario",
+    "grade": "6to",
+    "subject": "Ciencias Sociales",
+    "contents": [
+        { "id": "CON-CSOC-S6-01", "text": "Geografía de la isla de Santo Domingo: Fuentes" },
+        { "id": "CON-CSOC-S6-04", "text": "Demografía: Crecimiento de la población dominicana" },
+        { "id": "CON-CSOC-S6-07", "text": "Economía: La República Dominicana a finales del siglo XX" },
+        { "id": "CON-CSOC-S6-15", "text": "Historia Dominicana: Ocupación militar estadounidense" },
+        { "id": "CON-CSOC-S6-16", "text": "Dictadura de Trujillo" },
+        { "id": "CON-CSOC-S6-44", "text": "Educación ciudadana: Problemas ambientales" },
+        { "id": "CON-CSOC-S6-46", "text": "Identidad nacional y pensamiento dominicano" }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-CSOC-S6-01", "code": "CE-CSOC-S6-01", "name": "Competencia Comunicativa", "fundamentalId": "FC2" },
+        { "id": "CE-CSOC-S6-02", "code": "CE-CSOC-S6-02", "name": "Competencia de Pensamiento Lógico, Creativo y Crítico", "fundamentalId": "FC3" },
+        { "id": "CE-CSOC-S6-03", "code": "CE-CSOC-S6-03", "name": "Competencia de Resolución de Problemas", "fundamentalId": "FC4" },
+        { "id": "CE-CSOC-S6-04", "code": "CE-CSOC-S6-04", "name": "Competencia Ética y Ciudadana", "fundamentalId": "FC1" },
+        { "id": "CE-CSOC-S6-05", "code": "CE-CSOC-S6-05", "name": "Competencia Científica y Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-CSOC-S6-06", "code": "CE-CSOC-S6-06", "name": "Competencia Ambiental y de la Salud", "fundamentalId": "FC6" },
+        { "id": "CE-CSOC-S6-07", "code": "CE-CSOC-S6-07", "name": "Competencia de Desarrollo Personal y Espiritual", "fundamentalId": "FC7" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_1ro_ciencias_de_la_naturaleza",
+    "level": "Nivel Secundario",
+    "grade": "1ro",
+    "subject": "Ciencias de la Naturaleza",
+    "contents": [
+        { "id": "CON-CNAT-S1-01", "text": "Estructura interna del planeta Tierra: Masa, volumen y densidad" },
+        { "id": "CON-CNAT-S1-02", "text": "Propiedades Físicas de la estructura interna" },
+        { "id": "CON-CNAT-S1-03", "text": "Propiedades químicas de la estructura interna" },
+        { "id": "CON-CNAT-S1-04", "text": "Hidrosfera" },
+        { "id": "CON-CNAT-S1-05", "text": "Atmósfera, capas y sus propiedades" },
+        { "id": "CON-CNAT-S1-06", "text": "Planeta Tierra: Formación del planeta" },
+        { "id": "CON-CNAT-S1-07", "text": "Deriva continental" },
+        { "id": "CON-CNAT-S1-08", "text": "Placas tectónicas" },
+        { "id": "CON-CNAT-S1-12", "text": "Seres vivos y fósiles" },
+        { "id": "CON-CNAT-S1-13", "text": "Composición y distribución: Rocas, Minerales" },
+        { "id": "CON-CNAT-S1-19", "text": "Fenómenos geológicos: Volcanes" },
+        { "id": "CON-CNAT-S1-20", "text": "Sismos y propiedades de ondas" },
+        { "id": "CON-CNAT-S1-25", "text": "Tiempo y clima" },
+        { "id": "CON-CNAT-S1-28", "text": "Contaminación de suelo, agua y aire" },
+        { "id": "CON-CNAT-S1-29", "text": "Energía renovable" },
+        { "id": "CON-CNAT-S1-31", "text": "Calentamiento global" },
+        { "id": "CON-CNAT-S1-32", "text": "Cambio climático" }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-CNAT-S1-01", "code": "CE-CNAT-S1-01", "name": "Competencia Comunicativa", "fundamentalId": "FC2" },
+        { "id": "CE-CNAT-S1-02", "code": "CE-CNAT-S1-02", "name": "Competencia de Pensamiento Lógico, Creativo y Crítico", "fundamentalId": "FC3" },
+        { "id": "CE-CNAT-S1-03", "code": "CE-CNAT-S1-03", "name": "Competencia de Resolución de Problemas", "fundamentalId": "FC4" },
+        { "id": "CE-CNAT-S1-04", "code": "CE-CNAT-S1-04", "name": "Competencia Ética y Ciudadana", "fundamentalId": "FC1" },
+        { "id": "CE-CNAT-S1-05", "code": "CE-CNAT-S1-05", "name": "Competencia Científica y Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-CNAT-S1-06", "code": "CE-CNAT-S1-06", "name": "Competencia Ambiental y de la Salud", "fundamentalId": "FC6" },
+        { "id": "CE-CNAT-S1-07", "code": "CE-CNAT-S1-07", "name": "Competencia de Desarrollo Personal y Espiritual", "fundamentalId": "FC7" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_2do_ciencias_de_la_naturaleza",
+    "level": "Nivel Secundario",
+    "grade": "2do",
+    "subject": "Ciencias de la Naturaleza",
+    "contents": [
+        { "id": "CON-CNAT-S2-01", "text": "Bioelementos: Materia viva" },
+        { "id": "CON-CNAT-S2-02", "text": "Niveles de organización" },
+        { "id": "CON-CNAT-S2-03", "text": "Célula: Eucariota, Procariota" },
+        { "id": "CON-CNAT-S2-05", "text": "Tejidos, Órganos, Sistemas de órganos" },
+        { "id": "CON-CNAT-S2-08", "text": "Genética: Genes, Fenotipo, Genotipo" },
+        { "id": "CON-CNAT-S2-12", "text": "Ácido desoxirribonucleico (ADN), Ácido ribonucleico (ARN)" },
+        { "id": "CON-CNAT-S2-15", "text": "Reproducción: Asexual, Sexual" },
+        { "id": "CON-CNAT-S2-19", "text": "Evolución: Teorías evolutivas, Especie, Adaptación" },
+        { "id": "CON-CNAT-S2-23", "text": "Biodiversidad: Dominios y reinos" },
+        { "id": "CON-CNAT-S2-26", "text": "Ecología: Ecosistema, Flujo de energía" },
+        { "id": "CON-CNAT-S2-34", "text": "Salud: Sistema inmunológico, Enfermedades comunes" }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-CNAT-S2-01", "code": "CE-CNAT-S2-01", "name": "Competencia Comunicativa", "fundamentalId": "FC2" },
+        { "id": "CE-CNAT-S2-02", "code": "CE-CNAT-S2-02", "name": "Competencia de Pensamiento Lógico, Creativo y Crítico", "fundamentalId": "FC3" },
+        { "id": "CE-CNAT-S2-03", "code": "CE-CNAT-S2-03", "name": "Competencia de Resolución de Problemas", "fundamentalId": "FC4" },
+        { "id": "CE-CNAT-S2-04", "code": "CE-CNAT-S2-04", "name": "Competencia Ética y Ciudadana", "fundamentalId": "FC1" },
+        { "id": "CE-CNAT-S2-05", "code": "CE-CNAT-S2-05", "name": "Competencia Científica y Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-CNAT-S2-06", "code": "CE-CNAT-S2-06", "name": "Competencia Ambiental y de la Salud", "fundamentalId": "FC6" },
+        { "id": "CE-CNAT-S2-07", "code": "CE-CNAT-S2-07", "name": "Competencia de Desarrollo Personal y Espiritual", "fundamentalId": "FC7" }
+    ]
+  },
+  {
+    "id": "nivel_secundario_3ro_ciencias_de_la_naturaleza",
+    "level": "Nivel Secundario",
+    "grade": "3ro",
+    "subject": "Ciencias de la Naturaleza",
+    "contents": [
+        { "id": "CON-CNAT-S3-01", "text": "Naturaleza de la Ciencia: Modelos, principios, leyes" },
+        { "id": "CON-CNAT-S3-02", "text": "Mediciones, incertidumbre y estimación" },
+        { "id": "CON-CNAT-S3-04", "text": "Movimiento: Posición, Desplazamiento, Velocidad, Aceleración" },
+        { "id": "CON-CNAT-S3-11", "text": "Fuerza, Gravitación" },
+        { "id": "CON-CNAT-S3-14", "text": "Propiedades de la materia: Sustancias, mezclas" },
+        { "id": "CON-CNAT-S3-17", "text": "Energía y conservación: Cinética, Potencial, Térmica" },
+        { "id": "CON-CNAT-S3-22", "text": "Estados de la materia: Sólidos, líquidos, gases" },
+        { "id": "CON-CNAT-S3-32", "text": "Estructura e interacciones en la materia: Átomo, Tabla periódica, Enlaces" },
+        { "id": "CON-CNAT-S3-36", "text": "Reacciones químicas" },
+        { "id": "CON-CNAT-S3-40", "text": "Movimiento ondulatorio: Sonido, Luz" },
+        { "id": "CON-CNAT-S3-52", "text": "Nociones de electricidad: Carga, Circuitos" }
+    ],
+    "competenciesSummary": [
+        { "id": "CE-CNAT-S3-01", "code": "CE-CNAT-S3-01", "name": "Competencia Comunicativa", "fundamentalId": "FC2" },
+        { "id": "CE-CNAT-S3-02", "code": "CE-CNAT-S3-02", "name": "Competencia de Pensamiento Lógico, Creativo y Crítico", "fundamentalId": "FC3" },
+        { "id": "CE-CNAT-S3-03", "code": "CE-CNAT-S3-03", "name": "Competencia de Resolución de Problemas", "fundamentalId": "FC4" },
+        { "id": "CE-CNAT-S3-04", "code": "CE-CNAT-S3-04", "name": "Competencia Ética y Ciudadana", "fundamentalId": "FC1" },
+        { "id": "CE-CNAT-S3-05", "code": "CE-CNAT-S3-05", "name": "Competencia Científica y Tecnológica", "fundamentalId": "FC5" },
+        { "id": "CE-CNAT-S3-06", "code": "CE-CNAT-S3-06", "name": "Competencia Ambiental y de la Salud", "fundamentalId": "FC6" },
+        { "id": "CE-CNAT-S3-07", "code": "CE-CNAT-S3-07", "name": "Competencia de Desarrollo Personal y Espiritual", "fundamentalId": "FC7" }
+    ]
+  }
+]
+
+```
+--- END OF FILE: public/data/curriculums.json ---
+
+
+--- START OF FILE: public/data/competencies_matematica.json ---
+```json
+
+[
+  {
+    "curriculumId": "nivel_primario_5to_matemática",
+    "code": "MAT-5-RAZONA",
+    "name": "Razona y argumenta",
+    "description": "Comprende, representa y analiza situaciones y problemas, utilizando conceptos y procedimientos matemáticos.",
+    "fundamentalId": "FC3",
+    "indicators": [
+      { "id": "MAT-5-RAZONA-I1", "text": "Identifica y utiliza diferentes estrategias para resolver problemas." },
+      { "id": "MAT-5-RAZONA-I2", "text": "Comunica y justifica sus razonamientos y soluciones." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_primario_5to_matemática",
+    "code": "MAT-5-COMUNICA",
+    "name": "Comunica",
+    "description": "Expresa e comprende informaciones, ideas y conceptos matemáticos de forma oral y escrita.",
+    "fundamentalId": "FC4",
+    "indicators": [
+      { "id": "MAT-5-COMUNICA-I1", "text": "Utiliza el lenguaje matemático adecuado para describir situaciones y relaciones." },
+      { "id": "MAT-5-COMUNICA-I2", "text": "Interpreta información presentada en tablas y gráficos." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_primario_5to_matemática",
+    "code": "MAT-5-MODELA",
+    "name": "Modela y representa",
+    "description": "Utiliza modelos y representaciones matemáticas para describir y analizar situaciones de la vida real.",
+    "fundamentalId": "FC4",
+    "indicators": [
+      { "id": "MAT-5-MODELA-I1", "text": "Crea y utiliza representaciones gráficas y simbólicas para organizar y comunicar información." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_primario_5to_matemática",
+    "code": "MAT-5-CONECTA",
+    "name": "Conecta",
+    "description": "Establece relaciones entre diferentes conceptos y procedimientos matemáticos, y con otras áreas del saber.",
+    "fundamentalId": "FC5",
+    "indicators": [
+      { "id": "MAT-5-CONECTA-I1", "text": "Reconoce y aplica conceptos de numeración y operaciones en diferentes contextos." },
+      { "id": "MAT-5-CONECTA-I2", "text": "Relaciona conceptos geométricos con objetos de su entorno." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_1ro_matemática",
+    "code": "CE-MAT-1-01",
+    "name": "Interpretación Numérica y Financiera",
+    "description": "Interpreta ideas haciendo uso de la numeración matemática dentro de los sistemas numéricos y los relaciona con los conceptos de activos, pasivos, patrimonio, ingresos, gastos, costos para organizar las finanzas.",
+    "fundamentalId": "FC2",
+    "indicators": [
+      { "id": "IND-MAT-1-01", "text": "Lee informaciones básicas asociada a la numeración matemática de enteros, racionales, irracionales y reales." },
+      { "id": "IND-MAT-1-02", "text": "Interpreta datos y gráficos en reporte de investigación a partir de conocimientos de economía y finanzas." },
+      { "id": "IND-MAT-1-03", "text": "Aplica lógicamente sus conocimientos de numeración matemática en situaciones diversas." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_1ro_matemática",
+    "code": "CE-MAT-1-02",
+    "name": "Razonamiento Geométrico",
+    "description": "Explica lógicamente situaciones de la comunidad sobre conocimientos básicos de la geometría.",
+    "fundamentalId": "FC3",
+    "indicators": [
+      { "id": "IND-MAT-1-04", "text": "Representa lógicamente informaciones del contexto a partir de conceptos de geometría." },
+      { "id": "IND-MAT-1-05", "text": "Comunica informaciones relacionadas a proyectos aplicando geometría." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_1ro_matemática",
+    "code": "CE-MAT-1-03",
+    "name": "Resolución con Medición",
+    "description": "Plantea soluciones a diferentes situaciones que impliquen conocimientos de medición a partir del uso de los sistemas numéricos.",
+    "fundamentalId": "FC4",
+    "indicators": [
+      { "id": "IND-MAT-1-06", "text": "Resuelve problemas del contexto poniendo en práctica geometría y medición." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_1ro_matemática",
+    "code": "CE-MAT-1-04",
+    "name": "Responsabilidad en Medición",
+    "description": "Interpreta situaciones que impliquen conocimientos de medición respetando diferentes puntos de vistas y asumiendo actitud responsable.",
+    "fundamentalId": "FC1",
+    "indicators": [
+      { "id": "IND-MAT-1-07", "text": "Asume una actitud ética al interpretar situaciones referidas a la numeración matemática." },
+      { "id": "IND-MAT-1-08", "text": "Emplea de manera responsable conocimientos sobre geometría y medición." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_1ro_matemática",
+    "code": "CE-MAT-1-05",
+    "name": "Tecnología y Estadística",
+    "description": "Analiza diferentes tipos de herramientas tecnológicas para la resolución de problemas en la que intervenga la numeración y la estadística.",
+    "fundamentalId": "FC5",
+    "indicators": [
+      { "id": "IND-MAT-1-09", "text": "Identifica herramientas tecnológicas para interpretar soluciones numéricas." },
+      { "id": "IND-MAT-1-10", "text": "Modela situaciones referidas a estadística y probabilidad con herramientas tecnológicas." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_1ro_matemática",
+    "code": "CE-MAT-1-06",
+    "name": "Soluciones Comunitarias",
+    "description": "Usa los conocimientos de numeración y estadística a fin de contribuir a la solución de situaciones de la comunidad para una vida saludable.",
+    "fundamentalId": "FC6",
+    "indicators": [
+      { "id": "IND-MAT-1-11", "text": "Elabora proyectos comunitarios aplicando estadística y probabilidad." },
+      { "id": "IND-MAT-1-12", "text": "Identifica soluciones ante situaciones de salud usando geometría y medición." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_2do_matemática",
+    "code": "CE-MAT-2-01",
+    "name": "Comunicación Algebraica y Financiera",
+    "description": "Explica sus ideas haciendo uso de los reales como sistema numérico y los vincula a situaciones que impliquen tasa de interés y finanzas para generar ingresos.",
+    "fundamentalId": "FC2",
+    "indicators": [
+      { "id": "IND-MAT-2-01", "text": "Lee informaciones en diferentes contextos sobre números reales y álgebra." },
+      { "id": "IND-MAT-2-02", "text": "Interpreta situaciones de la comunidad empleando números reales y álgebra." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_2do_matemática",
+    "code": "CE-MAT-2-02",
+    "name": "Argumentación Lógica",
+    "description": "Argumenta con sentido lógico aplicando los conocimientos sobre los reales a partir de situaciones algebraicas diversas.",
+    "fundamentalId": "FC3",
+    "indicators": [
+      { "id": "IND-MAT-2-03", "text": "Razona y analiza las posibles soluciones de un estudio de caso algebraico o financiero." },
+      { "id": "IND-MAT-2-04", "text": "Toma decisiones lógicas a partir del análisis de situaciones." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_2do_matemática",
+    "code": "CE-MAT-2-03",
+    "name": "Resolución Geométrica",
+    "description": "Interpreta y resuelve diferentes tipos de problemas que impliquen los reales vinculándolos a situaciones de la geometría.",
+    "fundamentalId": "FC4",
+    "indicators": [
+      { "id": "IND-MAT-2-05", "text": "Resuelve a partir de modelos geométricos situaciones del entorno." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_2do_matemática",
+    "code": "CE-MAT-2-04",
+    "name": "Tecnología y Estadística Agrupada",
+    "description": "Utiliza herramientas tecnológicas en la resolución de problemas que implique la numeración y la estadística para datos agrupados.",
+    "fundamentalId": "FC5",
+    "indicators": [
+      { "id": "IND-MAT-2-06", "text": "Identifica herramientas y aplicaciones tecnológicas para interpretar soluciones." },
+      { "id": "IND-MAT-2-07", "text": "Aplica herramientas tecnológicas para resolver situaciones de la comunidad." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_2do_matemática",
+    "code": "CE-MAT-2-05",
+    "name": "Evaluación para la Salud",
+    "description": "Evalúa los conocimientos obtenidos de números reales para dar respuesta a situaciones que permitan contribuir a una vida saludable.",
+    "fundamentalId": "FC6",
+    "indicators": [
+      { "id": "IND-MAT-2-08", "text": "Analiza proyectos de investigación sobre factores que afectan la salud." },
+      { "id": "IND-MAT-2-09", "text": "Representa modelos de intervención sobre medio ambiente y salud." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_3ro_matemática",
+    "code": "CE-MAT-3-01",
+    "name": "Comunicación Algebraica",
+    "description": "Comunica sus ideas haciendo uso del lenguaje algebraico en situaciones diversas.",
+    "fundamentalId": "FC2",
+    "indicators": [
+      { "id": "IND-MAT-3-01", "text": "Lee informaciones básicas asociada al álgebra de polinomios." },
+      { "id": "IND-MAT-3-02", "text": "Comunica informaciones relacionadas a proyectos con sistemas de ecuaciones." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_3ro_matemática",
+    "code": "CE-MAT-3-02",
+    "name": "Interpretación Algebraica",
+    "description": "Interpreta lógicamente situaciones del contexto aplicando los conocimientos del álgebra.",
+    "fundamentalId": "FC3",
+    "indicators": [
+      { "id": "IND-MAT-3-03", "text": "Representa lógicamente informaciones del contexto a partir de ecuaciones." },
+      { "id": "IND-MAT-3-04", "text": "Toma decisiones lógicas a partir de situaciones sobre sistemas de ecuaciones." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_3ro_matemática",
+    "code": "CE-MAT-3-03",
+    "name": "Resolución de Problemas Algebraicos",
+    "description": "Resuelve problemas de la comunidad que impliquen los principios y teorías del álgebra.",
+    "fundamentalId": "FC4",
+    "indicators": [
+      { "id": "IND-MAT-3-05", "text": "Resuelve problemas asociados al álgebra de polinomios." },
+      { "id": "IND-MAT-3-06", "text": "Emplea diferentes métodos para resolver sistemas de ecuaciones." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_3ro_matemática",
+    "code": "CE-MAT-3-04",
+    "name": "Tecnología en Álgebra",
+    "description": "Emplea herramientas tecnológicas en la resolución e interpretación de problemas de tipo algebraicos.",
+    "fundamentalId": "FC5",
+    "indicators": [
+      { "id": "IND-MAT-3-07", "text": "Identifica herramientas tecnológicas para interpretar soluciones algebraicas." },
+      { "id": "IND-MAT-3-08", "text": "Modela situaciones referidas a sistemas de ecuaciones con herramientas tecnológicas." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_4to_matemática",
+    "code": "CE-MAT-4-01",
+    "name": "Interpretación Geométrica",
+    "description": "Interpreta a partir de sus conocimientos y haciendo uso del pensamiento geométrico situaciones del contexto.",
+    "fundamentalId": "FC2",
+    "indicators": [
+      { "id": "IND-MAT-4-01", "text": "Lee informaciones básicas asociada a los ángulos y sus postulados." },
+      { "id": "IND-MAT-4-02", "text": "Aplica lógicamente sus conocimientos asociados a los ángulos y sus postulados." },
+      { "id": "IND-MAT-4-03", "text": "Representa lógicamente informaciones a partir de postulados de congruencia y análisis de circunferencia." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_4to_matemática",
+    "code": "CE-MAT-4-02",
+    "name": "Explicación Lógica",
+    "description": "Explica lógicamente situaciones de la comunidad sobre conocimientos básicos de la geometría.",
+    "fundamentalId": "FC3",
+    "indicators": [
+      { "id": "IND-MAT-4-04", "text": "Interpreta datos y gráficos en reporte de investigación a partir de postulados geométricos." },
+      { "id": "IND-MAT-4-05", "text": "Toma decisiones adecuadas a partir de situaciones sobre transformaciones y volúmenes." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_4to_matemática",
+    "code": "CE-MAT-4-03",
+    "name": "Resolución de Problemas Geométricos",
+    "description": "Discrimina diferentes vías para resolver problemas de geometría a partir del análisis de situaciones de la vida diaria.",
+    "fundamentalId": "FC4",
+    "indicators": [
+      { "id": "IND-MAT-4-06", "text": "Resuelve problemas asociados a los ángulos y sus postulados." },
+      { "id": "IND-MAT-4-07", "text": "Resuelve problemas del contexto sobre congruencia y circunferencia." },
+      { "id": "IND-MAT-4-08", "text": "Emplea diferentes métodos para resolver problemas sobre transformaciones y volúmenes." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_4to_matemática",
+    "code": "CE-MAT-4-04",
+    "name": "Ética y Autonomía Geométrica",
+    "description": "Muestra autonomía y apertura en la interpretación de situaciones y problemas de geometría respetando diferentes criterios de resolución.",
+    "fundamentalId": "FC1",
+    "indicators": [
+      { "id": "IND-MAT-4-09", "text": "Asume una actitud ética al interpretar situaciones referidas a ángulos." },
+      { "id": "IND-MAT-4-10", "text": "Emplea de manera responsable los conocimientos sobre congruencia y circunferencia." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_4to_matemática",
+    "code": "CE-MAT-4-05",
+    "name": "Tecnología en Geometría",
+    "description": "Aplica herramientas tecnológicas en la resolución de problemas de geometría a fin de tomar decisiones en situaciones del contexto comunitario.",
+    "fundamentalId": "FC5",
+    "indicators": [
+      { "id": "IND-MAT-4-11", "text": "Identifica herramientas tecnológicas para interpretar soluciones geométricas." },
+      { "id": "IND-MAT-4-12", "text": "Modela situaciones referidas a transformaciones y volúmenes con herramientas tecnológicas." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_4to_matemática",
+    "code": "CE-MAT-4-06",
+    "name": "Geometría y Medio Ambiente",
+    "description": "Emplea el pensamiento geométrico conectando con otras áreas como forma de contribuir de manera responsable a la preservación de la salud y el medio ambiente.",
+    "fundamentalId": "FC6",
+    "indicators": [
+      { "id": "IND-MAT-4-13", "text": "Identifica soluciones ante situaciones de salud usando postulados geométricos." },
+      { "id": "IND-MAT-4-14", "text": "Elabora proyectos comunitarios para medio ambiente aplicando transformaciones y volúmenes." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_5to_matemática",
+    "code": "CE-MAT-5-01",
+    "name": "Justificación Algebraica y Trigonométrica",
+    "description": "Justifica sus ideas haciendo uso del pensamiento algebraico y trigonométrico.",
+    "fundamentalId": "FC2",
+    "indicators": [
+      { "id": "IND-MAT-5-01", "text": "Lee informaciones básicas asociada a la recta y cónicas." },
+      { "id": "IND-MAT-5-02", "text": "Aplica lógicamente sus conocimientos asociados a la recta y cónicas." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_5to_matemática",
+    "code": "CE-MAT-5-02",
+    "name": "Razonamiento Lógico",
+    "description": "Razona y argumenta lógicamente sobre procesos implicados en situaciones relativas al álgebra y la trigonometría.",
+    "fundamentalId": "FC3",
+    "indicators": [
+      { "id": "IND-MAT-5-03", "text": "Interpreta datos en reportes a partir de vectores y matrices." },
+      { "id": "IND-MAT-5-04", "text": "Representa lógicamente informaciones a partir de vectores y matrices." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_5to_matemática",
+    "code": "CE-MAT-5-03",
+    "name": "Resolución Trigonométrica",
+    "description": "Emplea diferentes técnicas de resolución de problemas de la trigonometría auxiliado de los conocimientos algebraicos.",
+    "fundamentalId": "FC4",
+    "indicators": [
+      { "id": "IND-MAT-5-05", "text": "Resuelve problemas asociados a la recta y cónicas." },
+      { "id": "IND-MAT-5-06", "text": "Emplea diferentes métodos para resolver problemas sobre trigonometría." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_5to_matemática",
+    "code": "CE-MAT-5-04",
+    "name": "Justificación Ética",
+    "description": "Justifica respetando el criterio de las demás personas soluciones frente a situaciones y problemas de álgebra y trigonometría.",
+    "fundamentalId": "FC1",
+    "indicators": [
+      { "id": "IND-MAT-5-07", "text": "Asume una actitud ética al interpretar situaciones referidas a la recta y cónicas." },
+      { "id": "IND-MAT-5-08", "text": "Emplea de manera responsable los conocimientos sobre vectores y matrices." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_5to_matemática",
+    "code": "CE-MAT-5-05",
+    "name": "Discriminación Tecnológica",
+    "description": "Discrimina la pertinencia del uso en diferentes herramientas tecnológicas para la resolución de problemas algebraicos y trigonométricos.",
+    "fundamentalId": "FC5",
+    "indicators": [
+      { "id": "IND-MAT-5-09", "text": "Identifica herramientas tecnológicas para interpretar soluciones de recta y cónicas." },
+      { "id": "IND-MAT-5-10", "text": "Modela situaciones referidas a trigonometría con herramientas tecnológicas." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_5to_matemática",
+    "code": "CE-MAT-5-06",
+    "name": "Contribución Ambiental",
+    "description": "Aporta solución a partir del pensamiento algebraico y trigonométrico conectando con otras áreas para la preservación de la salud y el medio ambiente.",
+    "fundamentalId": "FC6",
+    "indicators": [
+      { "id": "IND-MAT-5-11", "text": "Identifica soluciones ante situaciones de salud usando vectores y matrices." },
+      { "id": "IND-MAT-5-12", "text": "Elabora proyectos comunitarios ambientales aplicando trigonometría." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_6to_matemática",
+    "code": "CE-MAT-6-01",
+    "name": "Comunicación del Cálculo",
+    "description": "Comunica sus ideas haciendo uso del cálculo y sus aplicaciones.",
+    "fundamentalId": "FC2",
+    "indicators": [
+      { "id": "IND-MAT-6-01", "text": "Comunica ideas haciendo uso del cálculo y sus aplicaciones." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_6to_matemática",
+    "code": "CE-MAT-6-02",
+    "name": "Justificación Lógica",
+    "description": "Justifica con sentido lógico sobre procesos implicados en situaciones relativas al cálculo.",
+    "fundamentalId": "FC3",
+    "indicators": [
+      { "id": "IND-MAT-6-02", "text": "Justifica con sentido lógico procesos relativos al cálculo." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_6to_matemática",
+    "code": "CE-MAT-6-03",
+    "name": "Resolución con Cálculo",
+    "description": "Resuelve problemas relativos a situaciones de la vida diaria a partir de los conocimientos obtenidos del cálculo.",
+    "fundamentalId": "FC4",
+    "indicators": [
+      { "id": "IND-MAT-6-03", "text": "Resuelve problemas de la vida diaria usando cálculo." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_6to_matemática",
+    "code": "CE-MAT-6-04",
+    "name": "Interpretación Rigurosa",
+    "description": "Interpreta con rigurosidad situaciones y problemas del cálculo respetando diferentes criterios y puntos de vista.",
+    "fundamentalId": "FC1",
+    "indicators": [
+      { "id": "IND-MAT-6-04", "text": "Interpreta situaciones del cálculo respetando criterios." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_6to_matemática",
+    "code": "CE-MAT-6-05",
+    "name": "Evaluación Tecnológica",
+    "description": "Evalúa sobre la aplicación de herramientas tecnológicas en la resolución de problemas del cálculo diferencial e integral.",
+    "fundamentalId": "FC5",
+    "indicators": [
+      { "id": "IND-MAT-6-05", "text": "Evalúa la aplicación de herramientas tecnológicas en cálculo." }
+    ]
+  },
+  {
+    "curriculumId": "nivel_secundario_6to_matemática",
+    "code": "CE-MAT-6-06",
+    "name": "Aplicación Ambiental",
+    "description": "Evalúa la pertinencia en la aplicación de los conocimientos obtenidos del cálculo conectando con otras áreas para contribuir a la preservación del medio ambiente.",
+    "fundamentalId": "FC6",
+    "indicators": [
+      { "id": "IND-MAT-6-06", "text": "Evalúa la aplicación del cálculo para la preservación ambiental." }
+    ]
+  }
+]
+
+```
+--- END OF FILE: public/data/competencies_matematica.json ---
+
+
+--- START OF FILE: package.json ---
+```json
+{
+  "name": "regis",
+  "private": true,
+  "version": "1.6.4",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "deploy:dev": "firebase deploy --project dev --config firebase.dev.json",
+    "deploy:rules:dev": "firebase deploy --only firestore:rules --project dev --config firebase.dev.json",
+    "deploy:rules:prod": "firebase deploy --only firestore:rules --project prod",
+    "deploy:web:beta": "firebase deploy --only hosting:beta --project prod",
+    "deploy:web:prod": "firebase deploy --only hosting:pro --project prod",
+    "gen:context": "node scripts/generate-notebook-context.js"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@fluentui/react-icons": "^2.0.317",
+    "@google/genai": "^1.28.0",
+    "@stripe/stripe-js": "^8.7.0",
+    "firebase": "^12.7.0",
+    "firebase-admin": "^13.6.0",
+    "html2canvas": "^1.4.1",
+    "idb": "^8.0.3",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
+    "lucide-react": "^0.563.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-google-recaptcha-v3": "^1.11.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/html2canvas": "^0.5.35",
+    "@types/node": "^22.14.0",
+    "@types/qrcode": "^1.5.6",
+    "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.23",
+    "dotenv": "^17.2.3",
+    "firebase-tools": "^15.4.0",
+    "jsdom": "^27.4.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.0.17"
+  }
+}
+```
+--- END OF FILE: package.json ---
+
+
+--- START OF FILE: firebase.json ---
+```json
+{
+    "hosting": [
+        {
+            "target": "beta",
+            "public": "dist",
+            "ignore": [
+                "firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+            ],
+            "rewrites": [
+                {
+                    "source": "**",
+                    "destination": "/index.html"
+                }
+            ]
+        },
+        {
+            "target": "pro",
+            "public": "dist",
+            "ignore": [
+                "firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+            ],
+            "rewrites": [
+                {
+                    "source": "**",
+                    "destination": "/index.html"
+                }
+            ]
+        }
+    ],
+    "firestore": {
+        "rules": "firestore.rules"
+    },
+    "functions": {
+        "source": "functions"
+    },
+    "storage": {
+        "rules": "storage.rules"
+    },
+    "emulators": {
+        "functions": {
+            "port": 5001
+        },
+        "firestore": {
+            "port": 8080
+        },
+        "ui": {
+            "enabled": true,
+            "port": 4000
+        },
+        "singleProjectMode": true
+    }
+}
+```
+--- END OF FILE: firebase.json ---
+
+
+--- START OF FILE: firestore.rules ---
+```rules
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return request.auth.token.admin == true || request.auth.token.email == 'aneurystheone@gmail.com';
+    }
+
+    function isDemoTemplate(data) {
+      return data.userId == 'DEMO_PROFILE_TEMPLATE';
+    }
+
+    
+    // --- Collection-Specific Rules ---
+
+    // 1. Teacher Profile
+    match /teacher_profile/{uid} {
+      allow read: if isSignedIn() && (uid == request.auth.uid || isAdmin() || resource == null);
+      allow write: if isOwner(uid);
+    }
+    
+    // 2. Standard Shared Collections (By userId field)
+    // 2. Standard Collections (By userId field)
+    match /classes/{docId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+      allow write: if isSignedIn() && (
+        (resource == null || resource.data.userId == request.auth.uid) &&
+        (request.resource == null || request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    match /students/{docId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+      allow write: if isSignedIn() && (
+        (resource == null || resource.data.userId == request.auth.uid) &&
+        (request.resource == null || request.resource.data.userId == request.auth.uid)
+      );
+    }
+    
+    // Fallback for other collections in the list
+    match /{collectionName}/{docId} {
+        allow read: if isSignedIn() && (
+          collectionName in ['deleted_students', 'deleted_classes', 'anecdotes', 'user_competencies', 'journal', 'resources', 'custom_events', 'lesson_plans', 'attendance'] &&
+          (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data))
+        );
+        allow write: if isSignedIn() && (
+          collectionName in ['deleted_students', 'deleted_classes', 'anecdotes', 'user_competencies', 'journal', 'resources', 'custom_events', 'lesson_plans', 'attendance'] &&
+          (resource == null || resource.data.userId == request.auth.uid) &&
+          (request.resource == null || request.resource.data.userId == request.auth.uid)
+        );
+    }
+
+    // --- Evaluation Instruments & Grades ---
+    match /instruments/{instId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isDemoTemplate(resource.data));
+      allow write: if isSignedIn() && (
+        (resource == null || resource.data.userId == request.auth.uid) &&
+        (request.resource == null || request.resource.data.userId == request.auth.uid)
+      );
+
+      // Grades Subcollection (instruments/{instId}/grades)
+      // DIAGNOSTIC MASK: Temporarily simplified to isolate query issues
+      match /grades/{gradeId} {
+        allow read, write: if isSignedIn();
+
+        // Support for nested subcollections like /history
+        match /{allPaths=**} {
+           allow read, write: if isSignedIn();
+        }
+      }
+
+      // History sidecar at instrument level (legacy or shared)
+      match /history/{docId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // --- System Logs (Telemetry) ---
+    match /system_logs/{docId} {
+      allow create: if true; // Temporary allow all to fix telemetry diagnostic
+      allow read: if isSignedIn() && isAdmin();
+    }
+
+    // --- Usage Sessions (Analytics) ---
+    match /usage_sessions/{sessionId} {
+      // Admins can read all sessions for analytics dashboard
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        sessionId.startsWith(request.auth.uid) ||
+        (resource != null && resource.data.userId == request.auth.uid)
+      );
+      
+      // Users can only write their own sessions
+      allow write: if isSignedIn() && (
+        sessionId.startsWith(request.auth.uid) ||
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    
+    // 3. Bulk Lists (Special document ID format)
+    match /lists/{listDocId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (
+        listDocId == "grades_" + request.auth.uid || 
+        listDocId == "attendance_" + request.auth.uid ||
+        listDocId == "daily_notes_" + request.auth.uid ||
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid)
+      );
+    }
+    
+    // Specific Rules for detailed control or exceptions
+    
+    // Users Collection (Private Profile)
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Subscriptions (User Private)
+    match /subscriptions/{uid} {
+      allow read: if isSignedIn() && isOwner(uid);
+      allow write: if isSignedIn() && isOwner(uid);
+    }
+
+    // App Configuration
+    match /app_config/global_ai_features {
+      // Everyone can read features (to respect settings)
+      allow read: if true; 
+      // Only admins can change them
+      allow write: if isSignedIn() && isAdmin();
+    }
+
+    match /app_config/global_config {
+      // Version and build info should be public so users can be prompted to update
+      allow read: if true;
+      allow write: if isSignedIn() && isAdmin();
+    }
+
+    // --- Feedback ---
+    match /feedback/{feedbackId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow update, delete: if isSignedIn() && isAdmin();
+    }
+  }
+}
+
+```
+--- END OF FILE: firestore.rules ---
